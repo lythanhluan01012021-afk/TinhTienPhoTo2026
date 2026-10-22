@@ -575,3 +575,47 @@ body {
     width: 100%;
   }
 }
+
+/* ==========================================================================
+   STICKY HEADER & FIXED ACTION TOOLBAR
+   ========================================================================== */
+.app-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: var(--bg-main);
+  backdrop-filter: blur(8px);
+}
+
+.header-action-toolbar {
+  scrollbar-width: thin;
+  scrollbar-color: #c8d6e6 transparent;
+}
+
+.header-action-toolbar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.header-action-toolbar::-webkit-scrollbar-thumb {
+  background: #c8d6e6;
+  border-radius: 4px;
+}
+
+.header-action-toolbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (max-width: 1260px) {
+  .app-header-sticky .neu-card:first-child {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  
+  .header-action-toolbar {
+    width: 100%;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+  }
+}
+

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   DEFAULT_DEPARTMENTS,
   DEFAULT_TEACHERS,
@@ -245,6 +246,54 @@ export const AppProvider = ({ children }) => {
     setBillingItems(prev => [...prev, newItem]);
   };
 
+  // Helper: Thêm 1 dòng trống mới vào bảng tính
+  const handleAddBlankRow = () => {
+    addBillingItem({
+      teacherName: teachers[0]?.name || 'Giáo viên',
+      className: classes[0]?.className || '10A1',
+      subject: 'Đề kiểm tra học kỳ',
+      studentCount: classes[0]?.studentCount || 40,
+      extraCount: 0,
+      unitPrice: settings.defaultUnitPrice,
+      note: ''
+    });
+    if (currentTab !== 'billing') {
+      setCurrentTab('billing');
+    }
+  };
+
+  // Helper: Xuất dữ liệu bảng tính ra file Excel (.xlsx)
+  const handleExportExcel = () => {
+    if (billingItems.length === 0) {
+      alert('Bảng tính hiện chưa có dữ liệu để xuất file Excel.');
+      return;
+    }
+
+    const dataToExport = billingItems.map((item, idx) => ({
+      'STT': idx + 1,
+      'Tên Giáo Viên': item.teacherName,
+      'Lớp': item.className,
+      'Môn Học / Nội Dung': item.subject,
+      'Sĩ Số': item.studentCount,
+      'Số Lượng Lẻ': item.extraCount,
+      'Tổng Bản In': Number(item.studentCount) + Number(item.extraCount),
+      'Đơn Giá (VNĐ)': item.unitPrice,
+      'Thành Tiền (VNĐ)': item.amount,
+      'Ghi Chú': item.note || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'BangTinhTienPhoto');
+    XLSX.writeFile(workbook, `Bang_Tinh_Tien_Photo_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  // Helper: Mở nhanh file Google Sheet CSDL trên Google Drive
+  const handleOpenDatabase = () => {
+    const url = settings.sheetUrl || settings.driveFolderUrl || 'https://docs.google.com/spreadsheets';
+    window.open(url, '_blank');
+  };
+
   // Helper: Add all classes taught by a teacher
   const addBatchClassesForTeacher = (teacher, classAssignments) => {
     if (!classAssignments || classAssignments.length === 0) return;
@@ -415,6 +464,10 @@ export const AppProvider = ({ children }) => {
       const data = await res.json();
 
       if (data && data.status === 'success' && Array.isArray(data.items)) {
+        if (data.spreadsheetUrl && (!settings.sheetUrl || settings.sheetUrl !== data.spreadsheetUrl)) {
+          setSettings(prev => ({ ...prev, sheetUrl: data.spreadsheetUrl }));
+        }
+
         if (data.items.length === 0) {
           setSyncStatus({ status: 'info', message: 'Google Sheets hiện chưa có dữ liệu đơn photo nào.' });
         } else {
@@ -490,6 +543,9 @@ export const AppProvider = ({ children }) => {
         syncStatus,
 
         addBillingItem,
+        handleAddBlankRow,
+        handleExportExcel,
+        handleOpenDatabase,
         addBatchClassesForTeacher,
         updateBillingItem,
         removeBillingItem,

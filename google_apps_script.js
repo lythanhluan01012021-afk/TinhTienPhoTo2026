@@ -86,7 +86,8 @@ function doPost(e) {
         message: "Đồng bộ thành công! Đã cập nhật " + updatedCount + " mục và thêm mới " + insertedCount + " mục.",
         updatedCount: updatedCount,
         insertedCount: insertedCount,
-        totalItems: items.length
+        totalItems: items.length,
+        spreadsheetUrl: ss ? ss.getUrl() : ""
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -175,7 +176,17 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       items: items,
-      count: items.length
+      count: items.length,
+      spreadsheetUrl: ss ? ss.getUrl() : ""
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // LẤY TRỰC TIẾP URL SPREADSHEET ĐỂ MỞ NHANH
+  if (action === "getSpreadsheetUrl") {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      spreadsheetUrl: ss ? ss.getUrl() : "",
+      spreadsheetName: ss ? ss.getName() : ""
     })).setMimeType(ContentService.MimeType.JSON);
   }
 

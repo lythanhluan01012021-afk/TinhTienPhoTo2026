@@ -2,29 +2,14 @@ import React, { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   FileSpreadsheet, 
-  Trash2, 
-  Plus, 
-  Layers, 
-  Printer, 
-  CloudUpload, 
-  CloudDownload,
-  RotateCcw,
-  Download
+  Trash2
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 export const ExcelGrid = () => {
   const { 
     billingItems, 
     updateBillingItem, 
     removeBillingItem, 
-    addBillingItem, 
-    clearBillingGrid,
-    isGroupedView,
-    setIsGroupedView,
-    setIsPrintModalOpen,
-    syncToGoogleSheets,
-    fetchFromGoogleSheets,
     classes,
     teachers,
     settings
@@ -67,151 +52,39 @@ export const ExcelGrid = () => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
   };
 
-  // Add blank row
-  const handleAddBlankRow = () => {
-    addBillingItem({
-      teacherName: teachers[0]?.name || 'Giáo viên',
-      className: classes[0]?.className || '10A1',
-      subject: 'Đề kiểm tra học kỳ',
-      studentCount: classes[0]?.studentCount || 40,
-      extraCount: 0,
-      unitPrice: settings.defaultUnitPrice,
-      note: ''
-    });
-  };
-
-  // Export current table to Excel
-  const handleExportExcel = () => {
-    if (billingItems.length === 0) {
-      alert('Bảng tính hiện chưa có dữ liệu để xuất file Excel.');
-      return;
-    }
-
-    const dataToExport = billingItems.map((item, idx) => ({
-      'STT': idx + 1,
-      'Tên Giáo Viên': item.teacherName,
-      'Lớp': item.className,
-      'Môn Học / Nội Dung': item.subject,
-      'Sĩ Số': item.studentCount,
-      'Số Lượng Lẻ': item.extraCount,
-      'Tổng Bản In': Number(item.studentCount) + Number(item.extraCount),
-      'Đơn Giá (VNĐ)': item.unitPrice,
-      'Thành Tiền (VNĐ)': item.amount,
-      'Ghi Chú': item.note || ''
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'BangTinhTienPhoto');
-    XLSX.writeFile(workbook, `Bang_Tinh_Tien_Photo_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
   return (
     <div className="neu-card" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Action Toolbar on Top of Excel Table */}
+      {/* Compact Table Header Bar */}
       <div 
         style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
           flexWrap: 'wrap', 
-          gap: '12px',
-          borderBottom: '2px solid #d8e2ef',
-          paddingBottom: '14px'
+          gap: '10px',
+          borderBottom: '1.5px solid #d8e2ef',
+          paddingBottom: '12px'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div 
             className="neu-card-sm" 
-            style={{ width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}
+            style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}
           >
-            <FileSpreadsheet size={22} />
+            <FileSpreadsheet size={20} />
           </div>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--text-bold)' }}>
+            <h2 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0 }}>
               BẢNG TÍNH TIỀN PHOTO (EXCEL-LIKE)
             </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-sub)' }}>
-              Hiện có {billingItems.length} dòng dữ liệu • Tự động tính Thành tiền
+            <p style={{ fontSize: '12.5px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
+              Hiện có {billingItems.length} dòng dữ liệu • Nhấp vào ô để sửa trực tiếp • Tự động tính Thành tiền
             </p>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Toggle Grouping View */}
-          <button 
-            onClick={() => setIsGroupedView(!isGroupedView)}
-            className={`neu-btn ${isGroupedView ? 'active' : ''}`}
-            title="Xem tổng tiền theo từng Lớp học"
-            style={{ fontSize: '13.5px', padding: '8px 14px' }}
-          >
-            <Layers size={16} color="var(--color-primary)" />
-            <span>{isGroupedView ? 'Hiện Bảng Chi Tiết' : 'Tổng Theo Lớp'}</span>
-          </button>
-
-          {/* Add Row */}
-          <button 
-            onClick={handleAddBlankRow}
-            className="neu-btn"
-            style={{ fontSize: '13.5px', padding: '8px 14px' }}
-          >
-            <Plus size={16} color="var(--color-primary)" />
-            <span>Thêm Dòng</span>
-          </button>
-
-          {/* Export Excel */}
-          <button 
-            onClick={handleExportExcel}
-            className="neu-btn"
-            title="Tải bảng tính thành file Excel (.xlsx)"
-            style={{ fontSize: '13.5px', padding: '8px 14px' }}
-          >
-            <Download size={16} color="var(--color-primary)" />
-            <span>Xuất Excel</span>
-          </button>
-
-          {/* Print A4 */}
-          <button 
-            onClick={() => setIsPrintModalOpen(true)}
-            className="neu-btn neu-btn-primary"
-            style={{ fontSize: '13.5px', padding: '8px 16px' }}
-          >
-            <Printer size={16} />
-            <span>In Ấn A4</span>
-          </button>
-
-          {/* Fetch from Google Drive */}
-          <button 
-            onClick={fetchFromGoogleSheets}
-            className="neu-btn"
-            title="Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về máy"
-            style={{ fontSize: '13.5px', padding: '8px 14px', color: '#1b5ebe', fontWeight: '600' }}
-          >
-            <CloudDownload size={16} />
-            <span>Tải Từ Drive</span>
-          </button>
-
-          {/* Sync to Google Sheets (Upsert - Chống trùng lặp) */}
-          <button 
-            onClick={syncToGoogleSheets}
-            className="neu-btn neu-btn-success"
-            title="Lưu & Cập nhật lên Google Sheets (Tự động chống trùng lặp dữ liệu)"
-            style={{ fontSize: '13.5px', padding: '8px 14px' }}
-          >
-            <CloudUpload size={16} />
-            <span>Lưu CSDL</span>
-          </button>
-
-          {/* Clear Grid */}
-          <button 
-            onClick={clearBillingGrid}
-            className="neu-btn"
-            title="Xóa toàn bộ bảng tính hiện tại để bắt đầu phiên mới"
-            style={{ padding: '8px 12px', color: 'var(--color-danger)' }}
-          >
-            <RotateCcw size={16} />
-          </button>
+        <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          * Các nút chức năng chính đã được ghim cố định ở thanh tiêu đề trên cùng
         </div>
       </div>
 

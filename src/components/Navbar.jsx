@@ -5,7 +5,14 @@ import {
   Settings, 
   Receipt, 
   Printer,
-  Cloud
+  Cloud,
+  Layers,
+  Plus,
+  Download,
+  CloudUpload,
+  CloudDownload,
+  ExternalLink,
+  RotateCcw
 } from 'lucide-react';
 
 export const Navbar = () => {
@@ -13,47 +20,183 @@ export const Navbar = () => {
     currentTab, 
     setCurrentTab, 
     settings,
-    syncStatus
+    syncStatus,
+    isGroupedView,
+    setIsGroupedView,
+    handleAddBlankRow,
+    handleExportExcel,
+    handleOpenDatabase,
+    setIsPrintModalOpen,
+    syncToGoogleSheets,
+    fetchFromGoogleSheets,
+    clearBillingGrid
   } = useApp();
 
   return (
-    <header className="no-print" style={{ marginBottom: '20px' }}>
-      {/* Top Banner */}
+    <header 
+      className="no-print app-header-sticky" 
+      style={{ 
+        position: 'sticky', 
+        top: 0, 
+        zIndex: 1000, 
+        backgroundColor: 'var(--bg-main)',
+        paddingTop: '10px',
+        paddingBottom: '10px',
+        marginBottom: '16px',
+        boxShadow: '0 4px 16px rgba(19, 43, 79, 0.05)'
+      }}
+    >
+      {/* Top Banner: School Branding (Left) + Fixed Action Toolbar (Right) */}
       <div 
         className="neu-card" 
         style={{ 
-          padding: '16px 24px', 
+          padding: '10px 18px', 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '15px'
+          gap: '12px'
         }}
       >
         {/* School Branding */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
           <div 
             className="neu-card-sm"
             style={{ 
-              width: '48px', 
-              height: '48px', 
+              width: '42px', 
+              height: '42px', 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
               color: 'var(--color-primary)',
-              background: '#e8eef5'
+              background: '#e8eef5',
+              flexShrink: 0
             }}
           >
-            <Printer size={28} />
+            <Printer size={24} />
           </div>
           <div>
-            <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-bold)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <h1 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', textTransform: 'uppercase', letterSpacing: '0.4px', lineHeight: 1.2, margin: 0 }}>
               TÍNH TIỀN PHOTO HỌC LIỆU
             </h1>
-            <p style={{ fontSize: '14px', color: 'var(--color-primary)', fontWeight: '600' }}>
+            <p style={{ fontSize: '12.5px', color: 'var(--color-primary)', fontWeight: '600', margin: '2px 0 0 0' }}>
               {settings.departmentName} • Niên khóa {settings.schoolYear}
             </p>
           </div>
+        </div>
+
+        {/* Action Buttons Toolbar: Fixed, Single-Row with Smooth Flow */}
+        <div 
+          className="header-action-toolbar"
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            flexWrap: 'nowrap',
+            flexShrink: 0,
+            overflowX: 'auto',
+            padding: '2px 0',
+            maxWidth: '100%'
+          }}
+        >
+          {/* 1. Toggle Grouped View */}
+          <button 
+            onClick={() => {
+              setIsGroupedView(!isGroupedView);
+              if (currentTab !== 'billing') setCurrentTab('billing');
+            }}
+            className={`neu-btn ${isGroupedView ? 'active' : ''}`}
+            title="Xem tổng tiền theo từng Lớp học"
+            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Layers size={15} color="var(--color-primary)" />
+            <span>{isGroupedView ? 'Hiện Bảng Chi Tiết' : 'Tổng Theo Lớp'}</span>
+          </button>
+
+          {/* 2. Add Row */}
+          <button 
+            onClick={handleAddBlankRow}
+            className="neu-btn"
+            title="Thêm một dòng trống mới vào bảng tính"
+            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Plus size={15} color="var(--color-primary)" />
+            <span>Thêm Dòng</span>
+          </button>
+
+          {/* 3. Export Excel */}
+          <button 
+            onClick={handleExportExcel}
+            className="neu-btn"
+            title="Tải bảng tính thành file Excel (.xlsx)"
+            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Download size={15} color="var(--color-primary)" />
+            <span>Xuất Excel</span>
+          </button>
+
+          {/* 4. Print A4 */}
+          <button 
+            onClick={() => setIsPrintModalOpen(true)}
+            className="neu-btn neu-btn-primary"
+            title="Mở bảng in ấn theo chuẩn mẫu A4 chính thức"
+            style={{ fontSize: '13px', padding: '7px 15px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Printer size={15} />
+            <span>In Ấn A4</span>
+          </button>
+
+          {/* 5. Fetch from Drive */}
+          <button 
+            onClick={fetchFromGoogleSheets}
+            className="neu-btn"
+            title="Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về máy"
+            style={{ fontSize: '13px', padding: '7px 13px', color: '#1b5ebe', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <CloudDownload size={15} />
+            <span>Tải Từ Drive</span>
+          </button>
+
+          {/* 6. Save to Google Sheets */}
+          <button 
+            onClick={syncToGoogleSheets}
+            className="neu-btn neu-btn-success"
+            title="Lưu & Cập nhật lên Google Sheets (Tự động chống trùng lặp)"
+            style={{ fontSize: '13px', padding: '7px 15px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <CloudUpload size={15} />
+            <span>Lưu CSDL</span>
+          </button>
+
+          {/* 7. Xem CSDL (Mở nhanh Google Sheets CSDL) */}
+          <button 
+            onClick={handleOpenDatabase}
+            className="neu-btn"
+            title="Mở nhanh bảng tính Google Sheets CSDL trên Google Drive"
+            style={{ 
+              fontSize: '13px', 
+              padding: '7px 13px', 
+              whiteSpace: 'nowrap', 
+              flexShrink: 0,
+              color: '#065f46',
+              backgroundColor: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              fontWeight: '700'
+            }}
+          >
+            <ExternalLink size={15} color="#059669" />
+            <span>Xem CSDL</span>
+          </button>
+
+          {/* 8. Clear Grid (Làm mới) */}
+          <button 
+            onClick={clearBillingGrid}
+            className="neu-btn"
+            title="Làm mới / Xóa toàn bộ bảng tính hiện tại để bắt đầu phiên mới"
+            style={{ padding: '7px 11px', color: 'var(--color-danger)', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <RotateCcw size={15} />
+          </button>
         </div>
       </div>
 

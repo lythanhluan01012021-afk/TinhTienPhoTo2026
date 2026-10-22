@@ -132,7 +132,8 @@ function doPost(e) {
         status: "success",
         message: "Đồng bộ thành công! Đã cập nhật " + updatedCount + " mục và thêm mới " + insertedCount + " mục.",
         updatedCount: updatedCount,
-        insertedCount: insertedCount
+        insertedCount: insertedCount,
+        spreadsheetUrl: ss ? ss.getUrl() : ""
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -191,8 +192,12 @@ function doGet(e) {
       });
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", items: items, count: items.length }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ 
+      status: "success", 
+      items: items, 
+      count: items.length,
+      spreadsheetUrl: ss ? ss.getUrl() : ""
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 
   var sheet = ss ? ss.getSheetByName("NhatKy_Photo") : null;
@@ -1342,7 +1347,50 @@ function cleanDuplicates() {
               </button>
             </div>
             <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '6px' }}>
-              Khi lưu URL, mỗi lần nhấn nút "Lưu CSDL" ở Trang 1, toàn bộ bảng tính sẽ được ghi tự động vào Google Sheet trên Drive.
+              Khi lưu URL, mỗi lần nhấn nút "Lưu CSDL" ở thanh tiêu đề, toàn bộ bảng tính sẽ được ghi tự động vào Google Sheet trên Drive.
+            </p>
+          </div>
+
+          {/* Google Sheets Direct File URL Config */}
+          <div className="neu-card-sm" style={{ padding: '16px', marginTop: '12px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '6px' }}>
+              Link Trực Tiếp File Google Sheets (CSDL) để mở nhanh:
+            </label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input 
+                type="text"
+                className="neu-input"
+                placeholder="Dán link file Google Sheets (VD: https://docs.google.com/spreadsheets/d/.../edit)"
+                value={settings.sheetUrl || ''}
+                onChange={(e) => setSettings({ ...settings, sheetUrl: e.target.value })}
+                style={{ flex: '1' }}
+              />
+              <button 
+                onClick={() => {
+                  localStorage.setItem('photo_settings', JSON.stringify(settings));
+                  alert('Đã lưu Link Google Sheets thành công!');
+                }}
+                className="neu-btn neu-btn-primary"
+                style={{ padding: '8px 18px', fontSize: '13.5px' }}
+              >
+                <Save size={16} />
+                <span>Lưu Link</span>
+              </button>
+              <button 
+                onClick={() => {
+                  const url = settings.sheetUrl || settings.driveFolderUrl;
+                  if (url) window.open(url, '_blank');
+                }}
+                className="neu-btn"
+                title="Mở bảng tính Google Sheets này trong tab mới"
+                style={{ padding: '8px 16px', fontSize: '13.5px', color: '#065f46', fontWeight: 'bold' }}
+              >
+                <ExternalLink size={16} />
+                <span>Mở Thử</span>
+              </button>
+            </div>
+            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              Link này dùng cho nút <strong>"Xem CSDL"</strong> ở thanh tiêu đề trên cùng để mở ngay file Google Sheet bảng tính của bạn.
             </p>
           </div>
 
