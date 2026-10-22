@@ -267,8 +267,24 @@ export const GroupingView = () => {
           </div>
 
           {debtClassCount > 0 && (
-            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#b91c1c', background: '#fef2f2', padding: '4px 10px', borderRadius: '6px', border: '1px solid #fecaca' }}>
-              Đang có {debtClassCount} lớp có nợ tuần trước (Tổng nợ: {formatVND(totalClassDebts)})
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#b91c1c', background: '#fef2f2', padding: '4px 10px', borderRadius: '6px', border: '1px solid #fecaca' }}>
+                Đang có {debtClassCount} lớp có nợ tuần trước (Tổng nợ: {formatVND(totalClassDebts)})
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ các khoản nợ tuần trước để bắt đầu lại không?')) {
+                    clearAllClassDebts();
+                  }
+                }}
+                className="neu-btn"
+                style={{ fontSize: '12px', padding: '4px 10px', color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', cursor: 'pointer' }}
+                title="Xóa tất cả các khoản nợ đã ghi nhận"
+              >
+                <RotateCcw size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                <span>Xóa Hết Nợ</span>
+              </button>
             </div>
           )}
         </div>

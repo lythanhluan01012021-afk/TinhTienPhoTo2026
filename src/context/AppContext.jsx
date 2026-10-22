@@ -62,6 +62,14 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('photo_seed_official_v3', 'true');
   }
 
+  // Tự động xóa sạch mock data (các đơn photo mẫu và tiền nợ thử nghiệm) để bắt đầu dữ liệu thực tế
+  if (typeof window !== 'undefined' && localStorage.getItem('photo_clean_mock_v4') !== 'true') {
+    localStorage.removeItem('photo_billing_items');
+    localStorage.removeItem('photo_class_debts');
+    localStorage.removeItem('photo_class_payments');
+    localStorage.setItem('photo_clean_mock_v4', 'true');
+  }
+
   // Load data from localStorage or fallback to official school data
   const [teachers, setTeachers] = useState(() => {
     const saved = localStorage.getItem('photo_teachers');
@@ -637,16 +645,17 @@ export const AppProvider = ({ children }) => {
     setBillingItems(prev => prev.filter(i => i.id !== id));
   };
 
-  // Clear entire billing grid (với cơ chế bảo vệ doanh thu)
+  // Clear entire billing grid and debts (với cơ chế bảo vệ doanh thu)
   const clearBillingGrid = () => {
     if (billingItems.length > 0 && billingItems.some(i => !i.isSynced)) {
-      if (!window.confirm('CẢNH BÁO BẢO VỆ DOANH THU: Bảng tính đang có dòng photo chưa được "Lưu CSDL"! Nếu xóa bảng lúc này, bạn sẽ bị mất thông tin tính tiền. Bạn có chắc chắn muốn xóa không?')) {
+      if (!window.confirm('CẢNH BÁO BẢO VỆ DOANH THU: Bảng tính đang có dòng photo chưa được "Lưu CSDL"! Nếu làm mới lúc này, bạn sẽ bị mất thông tin tính tiền. Bạn có chắc chắn muốn xóa bảng tính và công nợ để bắt đầu phiên mới không?')) {
         return;
       }
-    } else if (!window.confirm('Bạn có chắc chắn muốn làm mới (xóa toàn bộ bảng tính hiện tại) để bắt đầu phiên mới?')) {
+    } else if (!window.confirm('Bạn có chắc chắn muốn làm mới (xóa toàn bộ bảng tính và công nợ) để bắt đầu tuần mới?')) {
       return;
     }
     setBillingItems([]);
+    setClassDebts({});
   };
 
   // Reset entire app data to empty
