@@ -67,21 +67,24 @@ export const PrintViewA4 = () => {
     setPrintClassFilter,
     getHomeroomTeacher,
     getStudentCountForClass,
-    currentWeek,
-    getClassDebtSummary
+    classDebts,
+    totalClassDebts
   } = useApp();
 
   const [printTemplate, setPrintTemplate] = useState('class_invoice'); // 'class_invoice' | 'school_summary'
   const [showSignatures, setShowSignatures] = useState(false); // Mặc định tắt để tiết kiệm giấy in theo yêu cầu
   const [compactMode, setCompactMode] = useState(true); // Mặc định gom nhiều lớp trên cùng 1 trang A4 để tiết kiệm giấy tối đa
 
-  // Unique classes in current billing data
+  // Danh sách các lớp có đơn photo hoặc có nợ
   const availableClasses = useMemo(() => {
-    const list = Array.from(new Set(billingItems.map(i => i.className).filter(Boolean)));
+    const list = Array.from(new Set([
+      ...billingItems.map(i => i.className).filter(Boolean),
+      ...Object.keys(classDebts || {}).filter(c => (classDebts[c]?.amount || 0) > 0)
+    ]));
     return list.sort();
-  }, [billingItems]);
+  }, [billingItems, classDebts]);
 
-  // Group items by class
+  // Gom nhóm dữ liệu theo lớp
   const classGroups = useMemo(() => {
     const map = {};
     billingItems.forEach(item => {
@@ -101,13 +104,26 @@ export const PrintViewA4 = () => {
       map[cls].totalAmount += amount;
     });
 
+    // Thêm các lớp có nợ dù không photo đợt này
+    Object.keys(classDebts || {}).forEach(cls => {
+      const d = classDebts[cls];
+      if ((d?.amount || 0) > 0 && !map[cls]) {
+        map[cls] = {
+          className: cls,
+          items: [],
+          totalCopies: 0,
+          totalAmount: 0
+        };
+      }
+    });
+
     if (printClassFilter !== 'all') {
       return Object.values(map).filter(g => g.className === printClassFilter);
     }
     return Object.values(map).sort((a, b) => a.className.localeCompare(b.className));
-  }, [billingItems, printClassFilter]);
+  }, [billingItems, printClassFilter, classDebts]);
 
-  // Grand total for school summary
+  // Tổng cộng toàn trường
   const grandTotal = useMemo(() => {
     let copies = 0;
     let amount = 0;
@@ -131,453 +147,495 @@ export const PrintViewA4 = () => {
       {isPrintModalOpen && (
         <div 
           className="modal-backdrop no-print"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(19, 43, 79, 0.45)',
-        backdropFilter: 'blur(4px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px'
-      }}
-    >
-      <div 
-        className="neu-card no-print"
-        style={{
-          width: '95%',
-          maxWidth: '920px',
-          maxHeight: '94vh',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#e8eef5',
-          borderRadius: '16px',
-          overflow: 'hidden',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)'
-        }}
-      >
-        {/* Modal Top Control Bar */}
-        <div 
           style={{
-            padding: '16px 24px',
-            background: 'linear-gradient(135deg, #1b5ebe, #134694)',
-            color: '#ffffff',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(19, 43, 79, 0.45)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Printer size={22} />
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                XEM TRƯỚC VÀ IN ẤN KHỔ A4 (CHUẨN XÁC KHÔNG NHẢY TRANG)
-              </h3>
-              <p style={{ fontSize: '12.5px', opacity: 0.9 }}>
-                Định dạng A4 Portrait căn lề chuẩn văn bản hành chính sư phạm
-              </p>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => setIsPrintModalOpen(false)}
-            style={{ background: 'transparent', border: 'none', color: '#ffffff', cursor: 'pointer' }}
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* Options Toolbar */}
-        <div 
-          style={{
-            padding: '12px 24px',
-            background: '#dfe7f2',
-            borderBottom: '1px solid #cad7e8',
-            display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px'
+            justifyContent: 'center',
+            padding: '20px'
           }}
         >
-          {/* Template Choice */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '13.5px', fontWeight: 'bold', color: 'var(--text-main)' }}>Mẫu In:</span>
-            <select 
-              className="neu-select"
-              value={printTemplate}
-              onChange={(e) => setPrintTemplate(e.target.value)}
-              style={{ width: '230px', padding: '6px 10px', fontSize: '13.5px' }}
-            >
-              <option value="class_invoice">1. Phiếu Thanh Toán Theo Lớp (GVCN)</option>
-              <option value="school_summary">2. Bảng Tổng Hợp Quyết Toán Toàn Trường</option>
-            </select>
-          </div>
-
-          {/* Class Filter if class_invoice */}
-          {printTemplate === 'class_invoice' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13.5px', fontWeight: 'bold' }}>Chọn Lớp In:</span>
-              <select 
-                className="neu-select"
-                value={printClassFilter}
-                onChange={(e) => setPrintClassFilter(e.target.value)}
-                style={{ width: '160px', padding: '6px 10px', fontSize: '13.5px' }}
-              >
-                <option value="all">Tất Cả Các Lớp</option>
-                {availableClasses.map(c => (
-                  <option key={c} value={c}>Lớp {c}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Tùy chọn Gom lớp & Chữ ký để tiết kiệm giấy in tối đa */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {printTemplate === 'class_invoice' && printClassFilter === 'all' && (
-              <label 
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
-                  fontSize: '13px', 
-                  fontWeight: '600',
-                  cursor: 'pointer', 
-                  userSelect: 'none', 
-                  color: 'var(--text-main)',
-                  background: '#e8eef5',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #cad7e8'
-                }}
-                title="Gom nhiều lớp trên cùng trang A4 để tiết kiệm giấy in. Chỉ ngắt sang trang mới khi lớp không đủ chỗ chứa."
-              >
-                <input 
-                  type="checkbox" 
-                  checked={compactMode} 
-                  onChange={(e) => setCompactMode(e.target.checked)} 
-                  style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-                />
-                <span>Gom lớp tiết kiệm giấy A4</span>
-              </label>
-            )}
-
-            <label 
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                fontSize: '13px', 
-                fontWeight: '600',
-                cursor: 'pointer', 
-                userSelect: 'none', 
-                color: 'var(--text-main)',
-                background: '#e8eef5',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid #cad7e8'
-              }}
-              title="Mặc định tắt chữ ký để tiết kiệm giấy in A4"
-            >
-              <input 
-                type="checkbox" 
-                checked={showSignatures} 
-                onChange={(e) => setShowSignatures(e.target.checked)} 
-                style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-              />
-              <span>Kèm phần chữ ký</span>
-            </label>
-
-            {/* Action Print Button */}
-            <button 
-              onClick={handlePrint}
-              className="neu-btn neu-btn-primary"
-              style={{ padding: '8px 22px', fontSize: '15px' }}
-            >
-              <Printer size={18} />
-              <span>Thực Hiện In Ngay (Ctrl + P)</span>
-            </button>
-          </div>
-        </div>
-
-        {/* A4 Paper Simulation Preview Box */}
-        <div 
-          style={{
-            flex: '1',
-            overflowY: 'auto',
-            padding: '24px',
-            background: '#c0cdda',
-            display: 'flex',
-            justifyContent: 'center'
-          }}
-        >
-          {/* Virtual Sheet of Paper */}
           <div 
+            className="neu-card no-print"
             style={{
-              width: '100%',
-              maxWidth: '210mm',
-              minHeight: '297mm',
-              background: '#ffffff',
-              padding: '16mm 14mm',
-              boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
-              color: '#000000',
-              fontFamily: '"Times New Roman", Times, serif',
-              fontSize: '13pt',
-              lineHeight: 1.4
+              width: '95%',
+              maxWidth: '920px',
+              maxHeight: '94vh',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#e8eef5',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)'
             }}
           >
-            {printTemplate === 'class_invoice' ? (
-              // TEMPLATE 1: PHIẾU BÀN GIAO & THANH TOÁN THEO LỚP
-              <div>
-                {classGroups.map((group, gIdx) => {
-                  const homeroom = getHomeroomTeacher(group.className);
-                  const siso = getStudentCountForClass(group.className);
-                  const words = numberToVietnameseWords(group.totalAmount);
+            {/* Modal Top Control Bar */}
+            <div 
+              style={{
+                padding: '16px 24px',
+                background: 'linear-gradient(135deg, #1b5ebe, #134694)',
+                color: '#ffffff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Printer size={22} />
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                    XEM TRƯỚC VÀ IN ẤN KHỔ A4 CHUẨN
+                  </h3>
+                  <p style={{ fontSize: '12.5px', opacity: 0.9 }}>
+                    Hệ thống tự động cộng dồn tiền thiếu / nợ cũ vào Bill in
+                  </p>
+                </div>
+              </div>
 
-                  return (
-                    <div 
-                      key={group.className}
-                      className={`print-page-wrapper print-class-block ${!compactMode && gIdx < classGroups.length - 1 ? 'force-page-break' : ''}`}
-                      style={{ 
-                        marginBottom: gIdx < classGroups.length - 1 ? (compactMode ? '16px' : '30px') : '0',
-                        borderBottom: gIdx < classGroups.length - 1 && compactMode ? '1.5px dashed #888888' : 'none',
-                        paddingBottom: gIdx < classGroups.length - 1 ? (compactMode ? '14px' : '25px') : '0'
+              <button 
+                onClick={() => setIsPrintModalOpen(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Print Options & Filters Bar */}
+            <div 
+              style={{
+                padding: '12px 24px',
+                background: '#ffffff',
+                borderBottom: '1px solid #cad7e8',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                {/* Chọn Mẫu In */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-bold)' }}>Mẫu in:</span>
+                  <select 
+                    value={printTemplate} 
+                    onChange={(e) => setPrintTemplate(e.target.value)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #b8cce4',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: 'var(--color-primary-dark)'
+                    }}
+                  >
+                    <option value="class_invoice">Phiếu Quyết Toán Từng Lớp</option>
+                    <option value="school_summary">Bảng Tổng Hợp Toàn Trường</option>
+                  </select>
+                </div>
+
+                {/* Chọn Lớp cần in */}
+                {printTemplate === 'class_invoice' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-bold)' }}>Lớp:</span>
+                    <select 
+                      value={printClassFilter} 
+                      onChange={(e) => setPrintClassFilter(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #b8cce4',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: 'var(--color-primary-dark)'
                       }}
                     >
-                      {/* Title (Đã tinh gọn để tiết kiệm giấy in tối đa) */}
-                      <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-                        <h2 style={{ fontSize: '13pt', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 2px 0' }}>
-                          BẢNG KÊ QUYẾT TOÁN TIỀN PHOTO TÀI LIỆU
-                        </h2>
-                        <div style={{ fontSize: '10.5pt' }}>
-                          <b>Lớp: {group.className}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 
-                          GVCN: <b>{homeroom}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 
-                          Sĩ số lớp: <b>{siso} học sinh</b>
-                        </div>
-                      </div>
-
-                      {/* Items Table */}
-                      <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt' }}>
-                        <thead>
-                          <tr style={{ backgroundColor: '#f0f0f0' }}>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px', width: '35px' }}>STT</th>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px', width: '140px' }}>Giáo viên Bộ môn</th>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px' }}>Nội dung tài liệu / Đề thi</th>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px', width: '50px' }}>Sĩ số</th>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px', width: '50px' }}>Số lẻ</th>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px', width: '65px' }}>Tổng bản</th>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px', width: '75px' }}>Đơn giá</th>
-                            <th style={{ border: '1px solid #000', padding: '4px 6px', width: '105px' }}>Thành tiền</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.items.map((item, idx) => {
-                            const itemCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
-                            return (
-                              <tr key={idx} style={{ pageBreakInside: 'avoid' }}>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center' }}>{idx + 1}</td>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px' }}>{item.teacherName}</td>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px' }}>{item.subject}</td>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{item.studentCount}</td>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{item.extraCount}</td>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', fontWeight: 'bold' }}>{itemCopies}</td>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('vi-VN')} đ</td>
-                                <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', fontWeight: 'bold' }}>{formatVND(item.amount)}</td>
-                              </tr>
-                            );
-                          })}
-                          {/* Subtotal */}
-                          <tr style={{ fontWeight: 'bold', backgroundColor: '#f9f9f9' }}>
-                            <td colSpan="5" style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right', textTransform: 'uppercase' }}>
-                              TỔNG CỘNG TIỀN PHOTO LỚP {group.className}:
-                            </td>
-                            <td style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right' }}>
-                              {group.totalCopies.toLocaleString('vi-VN')}
-                            </td>
-                            <td style={{ border: '1px solid #000', padding: '5px 6px' }}></td>
-                            <td style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt' }}>
-                              {formatVND(group.totalAmount)}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-
-                      {/* Words */}
-                      <div style={{ marginTop: '5px', fontSize: '9.5pt', fontStyle: 'italic' }}>
-                        Số tiền viết bằng chữ: <b>{words}</b>
-                      </div>
-
-                      {/* Weekly Debt & Settlement Breakdown */}
-                      {(() => {
-                        const debt = getClassDebtSummary(group.className, currentWeek);
-                        if (!debt) return null;
-                        return (
-                          <div style={{ marginTop: '6px', padding: '6px 10px', background: '#f8fafc', border: '1px solid #000', fontSize: '9.5pt' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                              <span>1. Tiền photo phát sinh trong {currentWeek}:</span>
-                              <b>{formatVND(debt.billedThisWeek)}</b>
-                            </div>
-                            {debt.previousDebt > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#b45309' }}>
-                                <span>2. Nợ cũ các tuần trước chuyển sang:</span>
-                                <b>+ {formatVND(debt.previousDebt)}</b>
-                              </div>
-                            )}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', borderTop: '1px dashed #000', paddingTop: '2px' }}>
-                              <b>3. TỔNG CỘNG LỚP CẦN NỘP:</b>
-                              <b style={{ fontSize: '10.5pt' }}>{formatVND(debt.totalDue)}</b>
-                            </div>
-                            {debt.paidAmount > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#047857' }}>
-                                <span>4. Số tiền lớp đã đóng ({currentWeek}):</span>
-                                <b>- {formatVND(debt.paidAmount)}</b>
-                              </div>
-                            )}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', color: debt.remainingDebt > 0 ? '#b91c1c' : '#047857', fontWeight: 'bold', borderTop: '1px solid #000', paddingTop: '2px' }}>
-                              <span>5. {debt.remainingDebt > 0 ? 'SỐ TIỀN CÒN THIẾU (NỢ CHUYỂN TUẦN SAU):' : 'TÌNH TRẠNG:'}</span>
-                              <span style={{ fontSize: '10.5pt' }}>
-                                {debt.remainingDebt > 0 ? formatVND(debt.remainingDebt) : 'ĐÃ NỘP ĐỦ'}
-                              </span>
-                            </div>
-                            {debt.note && (
-                              <div style={{ fontSize: '9pt', color: '#334155', fontStyle: 'italic', marginTop: '2px' }}>
-                                Ghi chú: {debt.note}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Signatures Block (Mặc định ẩn để tiết kiệm giấy in tối đa) */}
-                      {showSignatures && (
-                        <div className="print-signature-section" style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
-                          <div style={{ width: '45%', textAlign: 'center' }}>
-                            <b>ĐẠI DIỆN GVCN / LỚP {group.className}</b><br />
-                            <i>(Ký và ghi rõ họ tên)</i>
-                            <div style={{ height: '65px' }}></div>
-                            <b>{homeroom}</b>
-                          </div>
-                          <div style={{ width: '45%', textAlign: 'center' }}>
-                            <i>Ngày ..... tháng ..... năm 2026</i><br />
-                            <b>NGƯỜI LẬP BIỂU / BỘ PHẬN PHOTO</b><br />
-                            <i>(Ký và ghi rõ họ tên)</i>
-                            <div style={{ height: '65px' }}></div>
-                            <b>Nhân viên phụ trách</b>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              // TEMPLATE 2: BẢNG TỔNG HỢP TOÀN TRƯỜNG
-              <div className="print-page-wrapper">
-                {/* Title (Đã tinh gọn để tiết kiệm giấy in) */}
-                <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-                  <h2 style={{ fontSize: '16pt', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                    BẢNG TỔNG HỢP QUYẾT TOÁN KINH PHÍ PHOTOCOPY
-                  </h2>
-                  <div style={{ fontSize: '12pt', fontStyle: 'italic' }}>
-                    Niên khóa: {settings.schoolYear} • {settings.semester}
-                  </div>
-                </div>
-
-                {/* Main Table */}
-                <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f0f0f0' }}>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '35px' }}>STT</th>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '140px' }}>Giáo Viên</th>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '60px' }}>Lớp</th>
-                      <th style={{ border: '1px solid #000', padding: '6px' }}>Môn Học / Nội Dung</th>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '55px' }}>Sĩ số</th>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '55px' }}>Số lẻ</th>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '65px' }}>Tổng bản</th>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '75px' }}>Đơn giá</th>
-                      <th style={{ border: '1px solid #000', padding: '6px', width: '105px' }}>Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {billingItems.map((item, idx) => {
-                      const totalCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
-                      return (
-                        <tr key={idx} style={{ pageBreakInside: 'avoid' }}>
-                          <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{idx + 1}</td>
-                          <td style={{ border: '1px solid #000', padding: '5px' }}>{item.teacherName}</td>
-                          <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', fontWeight: 'bold' }}>{item.className}</td>
-                          <td style={{ border: '1px solid #000', padding: '5px' }}>{item.subject}</td>
-                          <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>{item.studentCount}</td>
-                          <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>{item.extraCount}</td>
-                          <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>{totalCopies}</td>
-                          <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('vi-VN')} đ</td>
-                          <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>{formatVND(item.amount)}</td>
-                        </tr>
-                      );
-                    })}
-                    {/* Grand Total Row */}
-                    <tr style={{ fontWeight: 'bold', backgroundColor: '#e9e9e9' }}>
-                      <td colSpan="6" style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', textTransform: 'uppercase' }}>
-                        TỔNG CỘNG TOÀN TRƯỜNG:
-                      </td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>
-                        {grandTotal.copies.toLocaleString('vi-VN')} bản
-                      </td>
-                      <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '11.5pt' }}>
-                        {formatVND(grandTotal.amount)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Words */}
-                <div style={{ marginTop: '10px', fontSize: '11.5pt', fontStyle: 'italic' }}>
-                  Tổng kinh phí bằng chữ: <b>{numberToVietnameseWords(grandTotal.amount)}</b>
-                </div>
-
-                {/* Triple Signatures (Mặc định ẩn để tiết kiệm giấy in) */}
-                {showSignatures && (
-                  <div className="print-signature-section" style={{ marginTop: '25px', display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
-                    <div style={{ width: '30%', textAlign: 'center' }}>
-                      <b>NGƯỜI LẬP BẢNG</b><br />
-                      <i>(Ký và ghi rõ họ tên)</i>
-                      <div style={{ height: '65px' }}></div>
-                      <b>Nhân viên phụ trách</b>
-                    </div>
-                    <div style={{ width: '30%', textAlign: 'center' }}>
-                      <b>KẾ TOÁN / THỦ QUỸ</b><br />
-                      <i>(Ký và ghi rõ họ tên)</i>
-                      <div style={{ height: '65px' }}></div>
-                    </div>
-                    <div style={{ width: '35%', textAlign: 'center' }}>
-                      <i>Ngày ..... tháng ..... năm 2026</i><br />
-                      <b>HIỆU TRƯỞNG DUYỆT</b><br />
-                      <i>(Ký, đóng dấu)</i>
-                      <div style={{ height: '65px' }}></div>
-                    </div>
+                      <option value="all">Tất cả các lớp ({availableClasses.length})</option>
+                      {availableClasses.map(cls => (
+                        <option key={cls} value={cls}>Lớp {cls}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>
-            )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {printTemplate === 'class_invoice' && printClassFilter === 'all' && (
+                  <label 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      fontSize: '13px', 
+                      fontWeight: '600',
+                      cursor: 'pointer', 
+                      userSelect: 'none', 
+                      color: 'var(--text-main)',
+                      background: '#e8eef5',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cad7e8'
+                    }}
+                    title="Gom nhiều lớp trên cùng trang A4 để tiết kiệm giấy in"
+                  >
+                    <input 
+                      type="checkbox" 
+                      checked={compactMode} 
+                      onChange={(e) => setCompactMode(e.target.checked)} 
+                      style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                    />
+                    <span>Gom lớp tiết kiệm giấy A4</span>
+                  </label>
+                )}
+
+                <label 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px', 
+                    fontSize: '13px', 
+                    fontWeight: '600',
+                    cursor: 'pointer', 
+                    userSelect: 'none', 
+                    color: 'var(--text-main)',
+                    background: '#e8eef5',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cad7e8'
+                  }}
+                  title="Mặc định tắt chữ ký để tiết kiệm giấy in A4"
+                >
+                  <input 
+                    type="checkbox" 
+                    checked={showSignatures} 
+                    onChange={(e) => setShowSignatures(e.target.checked)} 
+                    style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                  />
+                  <span>Kèm phần chữ ký</span>
+                </label>
+
+                {/* Nút In */}
+                <button 
+                  onClick={handlePrint}
+                  className="neu-btn neu-btn-primary"
+                  style={{ padding: '8px 22px', fontSize: '15px' }}
+                >
+                  <Printer size={18} />
+                  <span>Thực Hiện In Ngay (Ctrl + P)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* A4 Paper Simulation Preview Box */}
+            <div 
+              style={{
+                flex: '1',
+                overflowY: 'auto',
+                padding: '24px',
+                background: '#c0cdda',
+                display: 'flex',
+                justifyContent: 'center'
+              }}
+            >
+              {/* Virtual Sheet of Paper */}
+              <div 
+                style={{
+                  width: '100%',
+                  maxWidth: '210mm',
+                  minHeight: '297mm',
+                  background: '#ffffff',
+                  padding: '16mm 14mm',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
+                  color: '#000000',
+                  fontFamily: '"Times New Roman", Times, serif',
+                  fontSize: '13pt',
+                  lineHeight: 1.4
+                }}
+              >
+                {printTemplate === 'class_invoice' ? (
+                  // TEMPLATE 1: PHIẾU BÀN GIAO & THANH TOÁN THEO LỚP
+                  <div>
+                    {classGroups.map((group, gIdx) => {
+                      const homeroom = getHomeroomTeacher(group.className);
+                      const siso = getStudentCountForClass(group.className);
+                      const debtAmount = Number(classDebts?.[group.className]?.amount) || 0;
+                      const debtNote = classDebts?.[group.className]?.note || '';
+                      const totalClassDue = group.totalAmount + debtAmount;
+                      const words = numberToVietnameseWords(totalClassDue);
+
+                      return (
+                        <div 
+                          key={group.className}
+                          className={`print-page-wrapper print-class-block ${!compactMode && gIdx < classGroups.length - 1 ? 'force-page-break' : ''}`}
+                          style={{ 
+                            marginBottom: gIdx < classGroups.length - 1 ? (compactMode ? '16px' : '30px') : '0',
+                            borderBottom: gIdx < classGroups.length - 1 && compactMode ? '1.5px dashed #888888' : 'none',
+                            paddingBottom: gIdx < classGroups.length - 1 ? (compactMode ? '14px' : '25px') : '0'
+                          }}
+                        >
+                          {/* Title */}
+                          <div style={{ textAlign: 'center', marginBottom: '6px' }}>
+                            <h2 style={{ fontSize: '13pt', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 2px 0' }}>
+                              BẢNG KÊ QUYẾT TOÁN TIỀN PHOTO TÀI LIỆU
+                            </h2>
+                            <div style={{ fontSize: '10.5pt' }}>
+                              <b>Lớp: {group.className}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 
+                              GVCN: <b>{homeroom}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 
+                              Sĩ số lớp: <b>{siso} học sinh</b>
+                            </div>
+                          </div>
+
+                          {/* Items Table */}
+                          <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#f0f0f0' }}>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px', width: '35px' }}>STT</th>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px', width: '140px' }}>Giáo viên Bộ môn</th>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px' }}>Nội dung tài liệu / Đề thi</th>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px', width: '50px' }}>Sĩ số</th>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px', width: '50px' }}>Số lẻ</th>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px', width: '65px' }}>Tổng bản</th>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px', width: '75px' }}>Đơn giá</th>
+                                <th style={{ border: '1px solid #000', padding: '4px 6px', width: '105px' }}>Thành tiền</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.items.length === 0 ? (
+                                <tr>
+                                  <td colSpan="8" style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontStyle: 'italic', color: '#555' }}>
+                                    (Không có tài liệu photo phát sinh đợt này)
+                                  </td>
+                                </tr>
+                              ) : (
+                                group.items.map((item, idx) => {
+                                  const itemCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+                                  return (
+                                    <tr key={idx} style={{ pageBreakInside: 'avoid' }}>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center' }}>{idx + 1}</td>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px' }}>{item.teacherName}</td>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px' }}>{item.subject}</td>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{item.studentCount}</td>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{item.extraCount}</td>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', fontWeight: 'bold' }}>{itemCopies}</td>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('vi-VN')} đ</td>
+                                      <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', fontWeight: 'bold' }}>{formatVND(item.amount)}</td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+
+                              {/* Dòng cộng tiền photo đợt này */}
+                              <tr style={{ fontWeight: 'bold', backgroundColor: '#f9f9f9' }}>
+                                <td colSpan="5" style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right', textTransform: 'uppercase' }}>
+                                  CỘNG TIỀN PHOTO ĐỢT NÀY:
+                                </td>
+                                <td style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right' }}>
+                                  {group.totalCopies.toLocaleString('vi-VN')}
+                                </td>
+                                <td style={{ border: '1px solid #000', padding: '5px 6px' }}></td>
+                                <td style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt' }}>
+                                  {formatVND(group.totalAmount)}
+                                </td>
+                              </tr>
+
+                              {/* TỰ ĐỘNG CỘNG DỒN NỢ CŨ / TIỀN THIẾU VÀO BILL TỔNG KHI IN */}
+                              {debtAmount > 0 && (
+                                <>
+                                  <tr style={{ fontWeight: '600', backgroundColor: '#fff7ed', color: '#c2410c' }}>
+                                    <td colSpan="7" style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right' }}>
+                                      (+) TIỀN THIẾU / NỢ CŨ CHƯA NỘP {debtNote ? `(${debtNote})` : ''}:
+                                    </td>
+                                    <td style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
+                                      + {formatVND(debtAmount)}
+                                    </td>
+                                  </tr>
+                                  <tr style={{ fontWeight: 'bold', backgroundColor: '#eff6ff', color: '#1e3a8a' }}>
+                                    <td colSpan="7" style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'right', textTransform: 'uppercase', fontSize: '11pt' }}>
+                                      TỔNG CỘNG LỚP {group.className} CẦN THANH TOÁN:
+                                    </td>
+                                    <td style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'right', fontSize: '12pt', color: '#b91c1c' }}>
+                                      {formatVND(totalClassDue)}
+                                    </td>
+                                  </tr>
+                                </>
+                              )}
+                            </tbody>
+                          </table>
+
+                          {/* Words */}
+                          <div style={{ marginTop: '5px', fontSize: '9.5pt', fontStyle: 'italic' }}>
+                            Số tiền viết bằng chữ: <b>{words}</b>
+                          </div>
+
+                          {/* Signatures Block (Mặc định ẩn để tiết kiệm giấy in tối đa) */}
+                          {showSignatures && (
+                            <div className="print-signature-section" style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
+                              <div style={{ width: '45%', textAlign: 'center' }}>
+                                <b>ĐẠI DIỆN GVCN / LỚP {group.className}</b><br />
+                                <i>(Ký và ghi rõ họ tên)</i>
+                                <div style={{ height: '65px' }}></div>
+                                <b>{homeroom}</b>
+                              </div>
+                              <div style={{ width: '45%', textAlign: 'center' }}>
+                                <i>Ngày ..... tháng ..... năm 2026</i><br />
+                                <b>NGƯỜI LẬP BIỂU / BỘ PHẬN PHOTO</b><br />
+                                <i>(Ký và ghi rõ họ tên)</i>
+                                <div style={{ height: '65px' }}></div>
+                                <b>Nhân viên phụ trách</b>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  // TEMPLATE 2: BẢNG TỔNG HỢP TOÀN TRƯỜNG
+                  <div className="print-page-wrapper">
+                    <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                      <h2 style={{ fontSize: '16pt', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                        BẢNG TỔNG HỢP QUYẾT TOÁN KINH PHÍ PHOTOCOPY
+                      </h2>
+                      <div style={{ fontSize: '12pt', fontStyle: 'italic' }}>
+                        Niên khóa: {settings.schoolYear} • {settings.semester}
+                      </div>
+                    </div>
+
+                    <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f0f0f0' }}>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '35px' }}>STT</th>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '140px' }}>Giáo Viên</th>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '60px' }}>Lớp</th>
+                          <th style={{ border: '1px solid #000', padding: '6px' }}>Môn Học / Nội Dung</th>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '55px' }}>Sĩ số</th>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '55px' }}>Số lẻ</th>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '65px' }}>Tổng bản</th>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '75px' }}>Đơn giá</th>
+                          <th style={{ border: '1px solid #000', padding: '6px', width: '105px' }}>Thành tiền</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {billingItems.map((item, idx) => {
+                          const totalCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+                          return (
+                            <tr key={idx} style={{ pageBreakInside: 'avoid' }}>
+                              <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{idx + 1}</td>
+                              <td style={{ border: '1px solid #000', padding: '5px' }}>{item.teacherName}</td>
+                              <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', fontWeight: 'bold' }}>{item.className}</td>
+                              <td style={{ border: '1px solid #000', padding: '5px' }}>{item.subject}</td>
+                              <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>{item.studentCount}</td>
+                              <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>{item.extraCount}</td>
+                              <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>{totalCopies}</td>
+                              <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('vi-VN')} đ</td>
+                              <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>{formatVND(item.amount)}</td>
+                            </tr>
+                          );
+                        })}
+
+                        {/* Grand Total Row */}
+                        <tr style={{ fontWeight: 'bold', backgroundColor: '#e9e9e9' }}>
+                          <td colSpan="6" style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', textTransform: 'uppercase' }}>
+                            TỔNG TIỀN PHOTO TOÀN TRƯỜNG:
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>
+                            {grandTotal.copies.toLocaleString('vi-VN')} bản
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '6px' }}></td>
+                          <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '11.5pt' }}>
+                            {formatVND(grandTotal.amount)}
+                          </td>
+                        </tr>
+
+                        {/* TỔNG TIỀN NỢ CŨ CỦA CÁC LỚP NẾU CÓ */}
+                        {totalClassDebts > 0 && (
+                          <>
+                            <tr style={{ fontWeight: '600', backgroundColor: '#fff7ed', color: '#c2410c' }}>
+                              <td colSpan="8" style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', textTransform: 'uppercase' }}>
+                                (+) TỔNG TIỀN THIẾU / NỢ CŨ CỦA CÁC LỚP:
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
+                                + {formatVND(totalClassDebts)}
+                              </td>
+                            </tr>
+                            <tr style={{ fontWeight: 'bold', backgroundColor: '#eff6ff', color: '#1e3a8a' }}>
+                              <td colSpan="8" style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', textTransform: 'uppercase', fontSize: '11.5pt' }}>
+                                TỔNG KINH PHÍ CẦN THU TOÀN TRƯỜNG:
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '12pt', color: '#b91c1c' }}>
+                                {formatVND(grandTotal.amount + totalClassDebts)}
+                              </td>
+                            </tr>
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+
+                    {/* Words */}
+                    <div style={{ marginTop: '10px', fontSize: '11.5pt', fontStyle: 'italic' }}>
+                      Tổng kinh phí bằng chữ: <b>{numberToVietnameseWords(grandTotal.amount + totalClassDebts)}</b>
+                    </div>
+
+                    {/* Triple Signatures (Mặc định ẩn để tiết kiệm giấy in) */}
+                    {showSignatures && (
+                      <div className="print-signature-section" style={{ marginTop: '25px', display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
+                        <div style={{ width: '30%', textAlign: 'center' }}>
+                          <b>NGƯỜI LẬP BẢNG</b><br />
+                          <i>(Ký và ghi rõ họ tên)</i>
+                          <div style={{ height: '65px' }}></div>
+                          <b>Nhân viên phụ trách</b>
+                        </div>
+                        <div style={{ width: '30%', textAlign: 'center' }}>
+                          <b>KẾ TOÁN / THỦ QUỸ</b><br />
+                          <i>(Ký và ghi rõ họ tên)</i>
+                          <div style={{ height: '65px' }}></div>
+                        </div>
+                        <div style={{ width: '35%', textAlign: 'center' }}>
+                          <i>Ngày ..... tháng ..... năm 2026</i><br />
+                          <b>HIỆU TRƯỞNG DUYỆT</b><br />
+                          <i>(Ký, đóng dấu)</i>
+                          <div style={{ height: '65px' }}></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  )}
+      )}
 
-  {/* Hidden Print-Only DOM for the browser window.print() */}
-  <div className="print-only-container">
+      {/* 2. Hidden Print-Only DOM for the browser window.print() */}
+      <div className="print-only-container">
         {printTemplate === 'class_invoice' ? (
           <div>
             {classGroups.map((group, gIdx) => {
               const homeroom = getHomeroomTeacher(group.className);
               const siso = getStudentCountForClass(group.className);
-              const words = numberToVietnameseWords(group.totalAmount);
+              const debtAmount = Number(classDebts?.[group.className]?.amount) || 0;
+              const debtNote = classDebts?.[group.className]?.note || '';
+              const totalClassDue = group.totalAmount + debtAmount;
+              const words = numberToVietnameseWords(totalClassDue);
+
               return (
                 <div 
                   key={group.className} 
@@ -614,21 +672,31 @@ export const PrintViewA4 = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {group.items.map((item, idx) => {
-                        const totalItemCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
-                        return (
-                          <tr key={idx}>
-                            <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                            <td>{item.teacherName}</td>
-                            <td>{item.subject}</td>
-                            <td style={{ textAlign: 'right' }}>{item.studentCount}</td>
-                            <td style={{ textAlign: 'right' }}>{item.extraCount}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{totalItemCopies}</td>
-                            <td style={{ textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('vi-VN')} đ</td>
-                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatVND(item.amount)}</td>
-                          </tr>
-                        );
-                      })}
+                      {group.items.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', fontStyle: 'italic', color: '#555' }}>
+                            (Không có tài liệu photo phát sinh đợt này)
+                          </td>
+                        </tr>
+                      ) : (
+                        group.items.map((item, idx) => {
+                          const totalItemCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+                          return (
+                            <tr key={idx}>
+                              <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                              <td>{item.teacherName}</td>
+                              <td>{item.subject}</td>
+                              <td style={{ textAlign: 'right' }}>{item.studentCount}</td>
+                              <td style={{ textAlign: 'right' }}>{item.extraCount}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{totalItemCopies}</td>
+                              <td style={{ textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('vi-VN')} đ</td>
+                              <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatVND(item.amount)}</td>
+                            </tr>
+                          );
+                        })
+                      )}
+
+                      {/* Subtotal tiền photo đợt này */}
                       <tr style={{ fontWeight: 'bold' }}>
                         <td colSpan="5" style={{ textAlign: 'right', textTransform: 'uppercase' }}>
                           CỘNG TỔNG TIỀN PHOTO LỚP {group.className}:
@@ -637,6 +705,28 @@ export const PrintViewA4 = () => {
                         <td></td>
                         <td style={{ textAlign: 'right', fontSize: '11pt' }}>{formatVND(group.totalAmount)}</td>
                       </tr>
+
+                      {/* TỰ ĐỘNG CỘNG DỒN NỢ CŨ VÀO BILL KHI IN */}
+                      {debtAmount > 0 && (
+                        <>
+                          <tr style={{ fontWeight: '600' }}>
+                            <td colSpan="7" style={{ textAlign: 'right' }}>
+                              (+) TIỀN THIẾU / NỢ CŨ CHƯA NỘP {debtNote ? `(${debtNote})` : ''}:
+                            </td>
+                            <td style={{ textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
+                              + {formatVND(debtAmount)}
+                            </td>
+                          </tr>
+                          <tr style={{ fontWeight: 'bold' }}>
+                            <td colSpan="7" style={{ textAlign: 'right', textTransform: 'uppercase', fontSize: '11pt' }}>
+                              TỔNG CỘNG LỚP {group.className} CẦN THANH TOÁN:
+                            </td>
+                            <td style={{ textAlign: 'right', fontSize: '12pt' }}>
+                              {formatVND(totalClassDue)}
+                            </td>
+                          </tr>
+                        </>
+                      )}
                     </tbody>
                   </table>
 
@@ -667,7 +757,6 @@ export const PrintViewA4 = () => {
           </div>
         ) : (
           <div className="print-page-wrapper" style={{ padding: '10mm 0' }}>
-
             <div style={{ textAlign: 'center', marginBottom: '14px' }}>
               <h2 style={{ fontSize: '16pt', fontWeight: 'bold' }}>
                 BẢNG TỔNG HỢP QUYẾT TOÁN KINH PHÍ PHOTOCOPY TOÀN TRƯỜNG
@@ -708,17 +797,39 @@ export const PrintViewA4 = () => {
                     </tr>
                   );
                 })}
+
                 <tr style={{ fontWeight: 'bold' }}>
-                  <td colSpan="6" style={{ textAlign: 'right', textTransform: 'uppercase' }}>TỔNG CỘNG TOÀN TRƯỜNG:</td>
+                  <td colSpan="6" style={{ textAlign: 'right', textTransform: 'uppercase' }}>TỔNG TIỀN PHOTO TOÀN TRƯỜNG:</td>
                   <td style={{ textAlign: 'right' }}>{grandTotal.copies.toLocaleString('vi-VN')} bản</td>
                   <td></td>
                   <td style={{ textAlign: 'right', fontSize: '11.5pt' }}>{formatVND(grandTotal.amount)}</td>
                 </tr>
+
+                {totalClassDebts > 0 && (
+                  <>
+                    <tr style={{ fontWeight: '600' }}>
+                      <td colSpan="8" style={{ textAlign: 'right', textTransform: 'uppercase' }}>
+                        (+) TỔNG TIỀN THIẾU / NỢ CŨ CỦA CÁC LỚP:
+                      </td>
+                      <td style={{ textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
+                        + {formatVND(totalClassDebts)}
+                      </td>
+                    </tr>
+                    <tr style={{ fontWeight: 'bold' }}>
+                      <td colSpan="8" style={{ textAlign: 'right', textTransform: 'uppercase', fontSize: '11.5pt' }}>
+                        TỔNG KINH PHÍ CẦN THU TOÀN TRƯỜNG:
+                      </td>
+                      <td style={{ textAlign: 'right', fontSize: '12pt' }}>
+                        {formatVND(grandTotal.amount + totalClassDebts)}
+                      </td>
+                    </tr>
+                  </>
+                )}
               </tbody>
             </table>
 
             <div style={{ marginTop: '10px', fontSize: '11.5pt', fontStyle: 'italic' }}>
-              Tổng kinh phí bằng chữ: <b>{numberToVietnameseWords(grandTotal.amount)}</b>
+              Tổng kinh phí bằng chữ: <b>{numberToVietnameseWords(grandTotal.amount + totalClassDebts)}</b>
             </div>
 
             {showSignatures && (

@@ -84,8 +84,41 @@ function doPost(e) {
         }
       });
 
-      // CẬP NHẬT HOẶC TẠO TAB CÔNG NỢ THEO TUẦN (CongNo_TheoTuan)
-      if (data.weeklyDebtSummaries && data.weeklyDebtSummaries.length > 0) {
+      // CẬP NHẬT HOẶC TẠO TAB CÔNG NỢ CÁC LỚP
+      if (data.classDebts && data.classDebts.length > 0) {
+        var debtSheet = getOrCreateSimpleDebtSheet(ss);
+        var lastDebtRow = debtSheet.getLastRow();
+        var debtKeyToRowMap = {};
+
+        if (lastDebtRow > 1) {
+          var existingKeys = debtSheet.getRange(2, 1, lastDebtRow - 1, 1).getValues();
+          for (var k = 0; k < existingKeys.length; k++) {
+            var dKey = existingKeys[k][0];
+            if (dKey) {
+              debtKeyToRowMap[dKey.toString().trim()] = (k + 2);
+            }
+          }
+        }
+
+        data.classDebts.forEach(function(d) {
+          if (!d.className) return;
+          var cleanClass = d.className.toString().trim();
+          var debtRowValues = [
+            cleanClass,
+            d.homeroomTeacher || "",
+            Number(d.debtAmount) || 0,
+            d.note || "",
+            d.updatedAt || timestamp
+          ];
+
+          if (debtKeyToRowMap[cleanClass]) {
+            debtSheet.getRange(debtKeyToRowMap[cleanClass], 1, 1, 5).setValues([debtRowValues]);
+          } else {
+            debtSheet.appendRow(debtRowValues);
+            debtKeyToRowMap[cleanClass] = debtSheet.getLastRow();
+          }
+        });
+      } else if (data.weeklyDebtSummaries && data.weeklyDebtSummaries.length > 0) {
         var debtSheet = getOrCreateDebtSheet(ss);
         var lastDebtRow = debtSheet.getLastRow();
         var debtKeyToRowMap = {};
@@ -280,6 +313,29 @@ function getOrCreatePhotoSheet(ss) {
     sheet.getRange(1, 1, 1, 13)
          .setFontWeight("bold")
          .setBackground("#1b5ebe")
+         .setFontColor("#ffffff")
+         .setHorizontalAlignment("center");
+    sheet.setFrozenRows(1);
+    sheet.setRowHeight(1, 35);
+  }
+  return sheet;
+}
+
+// Hàm hỗ trợ lấy hoặc tạo sheet CongNo_CacLop (Quản lý trực tiếp nợ của từng lớp)
+function getOrCreateSimpleDebtSheet(ss) {
+  var sheet = ss.getSheetByName("CongNo_CacLop");
+  if (!sheet) {
+    sheet = ss.insertSheet("CongNo_CacLop");
+    sheet.appendRow([
+      "Lớp",
+      "GVCN",
+      "Tiền Nợ / Thiếu (VNĐ)",
+      "Ghi Chú Nợ",
+      "Ngày Cập Nhật"
+    ]);
+    sheet.getRange(1, 1, 1, 5)
+         .setFontWeight("bold")
+         .setBackground("#b91c1c")
          .setFontColor("#ffffff")
          .setHorizontalAlignment("center");
     sheet.setFrozenRows(1);

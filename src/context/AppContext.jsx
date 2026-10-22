@@ -193,6 +193,18 @@ export const AppProvider = ({ children }) => {
     return {};
   });
 
+  // Simple Class Debts: Quản lý trực tiếp tiền nợ / thiếu của từng lớp
+  // Format: { [className]: { amount: number, note: string, updatedAt: string } }
+  const [classDebts, setClassDebts] = useState(() => {
+    const saved = localStorage.getItem('photo_class_debts');
+    if (saved) {
+      try {
+        return JSON.parse(saved) || {};
+      } catch (e) {}
+    }
+    return {};
+  });
+
   // Run on mount to ensure departments for Dang, Tuyen and all teachers match exact school structure
   useEffect(() => {
     setTeachers(prev => {
@@ -245,6 +257,63 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('photo_class_payments', JSON.stringify(classPayments));
   }, [classPayments]);
+
+  useEffect(() => {
+    localStorage.setItem('photo_class_debts', JSON.stringify(classDebts));
+  }, [classDebts]);
+
+  // Cập nhật số tiền thiếu / nợ của 1 lớp
+  const updateClassDebt = (className, amount, note = '') => {
+    if (!className) return;
+    setClassDebts(prev => {
+      const numAmount = Math.max(0, Number(amount) || 0);
+      if (numAmount === 0 && !note) {
+        const next = { ...prev };
+        delete next[className];
+        return next;
+      }
+      return {
+        ...prev,
+        [className]: {
+          amount: numAmount,
+          note: note !== undefined ? note : (prev[className]?.note || ''),
+          updatedAt: new Date().toLocaleDateString('vi-VN')
+        }
+      };
+    });
+  };
+
+  // Xóa nợ của 1 lớp
+  const removeClassDebt = (className) => {
+    if (!className) return;
+    setClassDebts(prev => {
+      const next = { ...prev };
+      delete next[className];
+      return next;
+    });
+  };
+
+  // Xóa toàn bộ nợ
+  const clearAllClassDebts = () => {
+    setClassDebts({});
+  };
+
+  // Lấy số tiền nợ của 1 lớp
+  const getClassDebt = (className) => {
+    if (!className) return 0;
+    return Number(classDebts[className]?.amount) || 0;
+  };
+
+  // Lấy ghi chú nợ của 1 lớp
+  const getClassDebtNote = (className) => {
+    if (!className) return '';
+    return classDebts[className]?.note || '';
+  };
+
+  // Tổng nợ tất cả các lớp
+  const totalClassDebts = useMemo(() => {
+    return Object.values(classDebts).reduce((sum, d) => sum + (Number(d?.amount) || 0), 0);
+  }, [classDebts]);
 
   // Helper: Get student count for a class
   const getStudentCountForClass = (className) => {
@@ -628,33 +697,23 @@ export const AppProvider = ({ children }) => {
     setSyncStatus({ status: 'syncing', message: 'Đang đồng bộ đơn photo & công nợ tuần lên Google Sheets...' });
     
     try {
-      // Chuẩn bị dữ liệu công nợ các lớp trong tuần hiện tại
-      const currentStats = getWeekStatistics(currentWeek);
-      const weeklyDebtSummaries = currentStats.classSummaries.map(s => ({
-        key: `${s.week}_${s.className}`,
-        week: s.week,
-        className: s.className,
-        homeroomTeacher: getHomeroomTeacher(s.className),
-        billedThisWeek: s.billedThisWeek,
-        previousDebt: s.previousDebt,
-        totalDue: s.totalDue,
-        paidAmount: s.paidAmount,
-        remainingDebt: s.remainingDebt,
-        statusLabel: s.status === 'PAID' ? 'Đã nộp đủ' : (s.status === 'PARTIAL' ? 'Còn thiếu' : (s.status === 'OVERPAID' ? 'Nộp dư' : 'Chưa nộp')),
-        note: s.note || '',
-        updatedAt: new Date().toISOString()
+      // Chuẩn bị dữ liệu công nợ các lớp
+      const classDebtsList = Object.entries(classDebts).filter(([_, d]) => (d?.amount || 0) > 0).map(([cls, d]) => ({
+        className: cls,
+        homeroomTeacher: getHomeroomTeacher(cls),
+        debtAmount: Number(d?.amount) || 0,
+        note: d?.note || '',
+        updatedAt: d?.updatedAt || new Date().toLocaleDateString('vi-VN')
       }));
 
       const payload = {
         action: 'saveBillingData',
         folderId: settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId,
-        currentWeek: currentWeek,
         items: billingItems.map(item => ({
           ...item,
-          week: item.week || currentWeek || 'Tuần 1',
           statusLabel: ORDER_STATUSES[item.status]?.label || (item.isPaid ? 'Đã thanh toán' : 'Chờ gửi tài liệu')
         })),
-        weeklyDebtSummaries: weeklyDebtSummaries,
+        classDebts: classDebtsList,
         timestamp: new Date().toISOString()
       };
 
@@ -671,7 +730,7 @@ export const AppProvider = ({ children }) => {
 
       setSyncStatus({ 
         status: 'success', 
-        message: `Đã lưu & đồng bộ thành công ${billingItems.length} mục đơn photo và công nợ ${currentWeek} lên Google Sheets!` 
+        message: `Đã lưu & đồng bộ thành công ${billingItems.length} mục đơn photo và công nợ các lớp lên Google Sheets!` 
       });
     } catch (err) {
       console.error(err);
@@ -797,6 +856,16 @@ export const AppProvider = ({ children }) => {
         addWeek,
         getClassDebtSummary,
         getWeekStatistics,
+
+        // Direct Class Debts (Quản lý trực tiếp nợ / thiếu theo yêu cầu người dùng)
+        classDebts,
+        setClassDebts,
+        updateClassDebt,
+        removeClassDebt,
+        clearAllClassDebts,
+        getClassDebt,
+        getClassDebtNote,
+        totalClassDebts,
 
         addBillingItem,
         handleAddBlankRow,

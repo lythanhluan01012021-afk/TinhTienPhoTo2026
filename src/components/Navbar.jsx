@@ -29,7 +29,8 @@ export const Navbar = () => {
     setIsPrintModalOpen,
     syncToGoogleSheets,
     fetchFromGoogleSheets,
-    clearBillingGrid
+    clearBillingGrid,
+    totalClassDebts
   } = useApp();
 
   return (
@@ -106,11 +107,24 @@ export const Navbar = () => {
               if (currentTab !== 'billing') setCurrentTab('billing');
             }}
             className={`neu-btn ${isGroupedView ? 'active' : ''}`}
-            title="Xem tổng tiền theo từng Lớp học"
-            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0 }}
+            title="Xem tổng tiền & quản lý tiền nợ/thiếu theo từng Lớp học"
+            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
             <Layers size={15} color="var(--color-primary)" />
             <span>{isGroupedView ? 'Hiện Bảng Chi Tiết' : 'Tổng Theo Lớp'}</span>
+            {totalClassDebts > 0 && !isGroupedView && (
+              <span 
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  backgroundColor: '#ef4444',
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  boxShadow: '0 0 6px #ef4444'
+                }}
+                title="Đang có lớp ghi nhận nợ/thiếu"
+              />
+            )}
           </button>
 
           {/* 2. Add Row */}

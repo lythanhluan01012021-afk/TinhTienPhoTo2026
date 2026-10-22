@@ -13,9 +13,9 @@ export const ExcelGrid = () => {
     classes,
     teachers,
     settings,
-    currentWeek,
-    setCurrentWeek,
-    availableWeeks
+    totalClassDebts,
+    classDebts,
+    setIsGroupedView
   } = useApp();
 
   const displayedItems = billingItems;
@@ -87,43 +87,37 @@ export const ExcelGrid = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div 
-            className="neu-card-sm" 
-            style={{ 
-              padding: '5px 12px', 
-              fontSize: '13px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px',
-              border: '1.5px solid #b8cce4',
-              background: '#f4f8fc',
-              borderRadius: '8px'
-            }}
-            title="Chọn tuần photo để gán cho các đơn mới nhập"
-          >
-            <span style={{ fontWeight: '600', color: 'var(--text-sub)' }}>📅 Tuần Photo:</span>
-            <select
-              value={currentWeek}
-              onChange={(e) => setCurrentWeek(e.target.value)}
-              style={{
-                border: 'none',
-                background: 'transparent',
+          {totalClassDebts > 0 ? (
+            <button 
+              onClick={() => setIsGroupedView(true)}
+              className="neu-btn" 
+              style={{ 
+                padding: '6px 14px', 
+                fontSize: '13px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                border: '1.5px solid #fca5a5',
+                background: '#fef2f2',
+                color: '#991b1b',
+                borderRadius: '8px',
                 fontWeight: 'bold',
-                color: 'var(--color-primary-dark)',
-                fontSize: '13.5px',
-                cursor: 'pointer',
-                outline: 'none'
+                cursor: 'pointer'
               }}
+              title="Bấm để xem và sửa nợ của các lớp"
             >
-              {availableWeeks.map(w => (
-                <option key={w} value={w}>{w}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-            * Bấm "Tổng Theo Lớp" để quản lý thu tiền & nợ theo tuần
-          </div>
+              <span>🔴 Có {Object.keys(classDebts || {}).filter(c => (classDebts[c]?.amount || 0) > 0).length} lớp đang nợ/thiếu (+{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalClassDebts)})</span>
+            </button>
+          ) : (
+            <button 
+              onClick={() => setIsGroupedView(true)}
+              className="neu-btn"
+              style={{ fontSize: '13px', padding: '6px 14px', color: 'var(--color-primary-dark)', fontWeight: '600' }}
+              title="Bấm để chọn lớp thiếu hoặc không trả để cộng vào bill in"
+            >
+              <span>⚡ Ghi Nợ / Tiền Thiếu Cho Lớp</span>
+            </button>
+          )}
         </div>
       </div>
 
