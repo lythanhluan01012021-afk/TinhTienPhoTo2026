@@ -46,26 +46,26 @@ const migrateTeacherDept = (dept, teacherName = '') => {
 };
 
 export const AppProvider = ({ children }) => {
-  // Clear any existing mock data from localStorage once
-  if (typeof window !== 'undefined' && localStorage.getItem('photo_mock_cleaned_v2') !== 'true') {
+  // Tự động nạp dữ liệu chính thức của trường khi mở web lần đầu hoặc khi dữ liệu đang trống
+  if (typeof window !== 'undefined' && localStorage.getItem('photo_seed_official_v3') !== 'true') {
     localStorage.removeItem('photo_teachers');
     localStorage.removeItem('photo_classes');
     localStorage.removeItem('photo_assignments');
-    localStorage.removeItem('photo_cashflow');
-    localStorage.removeItem('photo_billing_items');
-    localStorage.setItem('photo_mock_cleaned_v2', 'true');
+    localStorage.setItem('photo_seed_official_v3', 'true');
   }
 
-  // Load data from localStorage or fallback to empty arrays
+  // Load data from localStorage or fallback to official school data
   const [teachers, setTeachers] = useState(() => {
     const saved = localStorage.getItem('photo_teachers');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.map(t => ({
-          ...t,
-          dept: migrateTeacherDept(t.dept, t.name)
-        }));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(t => ({
+            ...t,
+            dept: migrateTeacherDept(t.dept, t.name)
+          }));
+        }
       } catch (e) {
         console.error(e);
       }
@@ -75,12 +75,32 @@ export const AppProvider = ({ children }) => {
 
   const [classes, setClasses] = useState(() => {
     const saved = localStorage.getItem('photo_classes');
-    return saved ? JSON.parse(saved) : DEFAULT_CLASSES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return DEFAULT_CLASSES;
   });
 
   const [assignments, setAssignments] = useState(() => {
     const saved = localStorage.getItem('photo_assignments');
-    return saved ? JSON.parse(saved) : DEFAULT_ASSIGNMENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return DEFAULT_ASSIGNMENTS;
   });
 
   const [settings, setSettings] = useState(() => {
