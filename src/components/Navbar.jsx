@@ -4,14 +4,16 @@ import {
   Calculator, 
   Settings, 
   Receipt, 
-  Printer
+  Printer,
+  Cloud
 } from 'lucide-react';
 
 export const Navbar = () => {
   const { 
     currentTab, 
     setCurrentTab, 
-    settings
+    settings,
+    syncStatus
   } = useApp();
 
   return (
