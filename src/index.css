@@ -1,0 +1,577 @@
+/* ==========================================================================
+   DESIGN SYSTEM - NEUMORPHISM (SOFT UI) - THEME PHOTO APP
+   Typography: Times New Roman | Palette: Professional Blue / Navy
+   ========================================================================== */
+
+:root {
+  /* Color Palette */
+  --bg-main: #e8eef5;
+  --bg-card: #e8eef5;
+  --text-main: #132b4f;
+  --text-bold: #0b1c36;
+  --text-sub: #3b5475;
+  --text-muted: #657e9e;
+  
+  --color-primary: #1b5ebe;
+  --color-primary-dark: #12438c;
+  --color-primary-light: #3d7fe0;
+  --color-success: #198754;
+  --color-warning: #b45309;
+  --color-danger: #c53030;
+  
+  /* Neumorphic Shadows */
+  --shadow-flat: 6px 6px 14px #c6d2e1, -6px -6px 14px #ffffff;
+  --shadow-hover: 8px 8px 18px #bcc9db, -8px -8px 18px #ffffff;
+  --shadow-sm: 3px 3px 8px #c6d2e1, -3px -3px 8px #ffffff;
+  --shadow-inset: inset 3px 3px 6px #c6d2e1, inset -3px -3px 6px #ffffff;
+  --shadow-inset-sm: inset 2px 2px 4px #c6d2e1, inset -2px -2px 4px #ffffff;
+  --shadow-pressed: inset 4px 4px 8px #c0ccdc, inset -4px -4px 8px #ffffff;
+  
+  /* Font */
+  --font-serif: 'Times New Roman', Tinos, Times, Georgia, serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: var(--font-serif);
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  min-height: 100vh;
+  font-family: var(--font-serif);
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Base Neumorphic Classes */
+.neu-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  box-shadow: var(--shadow-flat);
+  transition: all 0.25s ease;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.neu-card-sm {
+  background: var(--bg-card);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* ==========================================================================
+   GORILLA GLASSMORPHISM HOVER SYSTEM (HIỆU ỨNG KÍNH GORILLA TRONG SUỐT ĐỔI MÀU)
+   ========================================================================== */
+
+.neu-card,
+.neu-card-sm,
+.neu-btn,
+.neu-chip,
+.excel-table tbody tr,
+.grand-total-card,
+.teacher-item,
+.class-chip,
+.nav-tab {
+  transition: 
+    background 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    backdrop-filter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Gorilla Glass Hover Effect for Cards & Panels */
+.neu-card:hover,
+.neu-card-sm:hover,
+.grand-total-card:hover {
+  backdrop-filter: blur(16px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(190%) !important;
+  background: var(--gorilla-bg, linear-gradient(135deg, rgba(27, 94, 190, 0.14), rgba(255, 255, 255, 0.6))) !important;
+  border: 1px solid var(--gorilla-border, rgba(27, 94, 190, 0.45)) !important;
+  box-shadow: 
+    0 14px 34px -4px var(--gorilla-glow, rgba(27, 94, 190, 0.28)),
+    inset 0 1px 2px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Gorilla Glass Hover for Standard Neumorphic Buttons */
+.neu-btn:not(.neu-btn-primary):not(.neu-btn-success):not(.neu-btn-danger):hover {
+  backdrop-filter: blur(14px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(180%) !important;
+  background: var(--gorilla-bg, linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.45))) !important;
+  border: 1px solid var(--gorilla-border, rgba(27, 94, 190, 0.5)) !important;
+  box-shadow: 
+    0 8px 24px -2px var(--gorilla-glow, rgba(27, 94, 190, 0.28)),
+    inset 0 1px 2px rgba(255, 255, 255, 0.95) !important;
+  color: var(--gorilla-accent, var(--color-primary)) !important;
+  transform: translateY(-2px);
+}
+
+/* Primary/Success Buttons with Gorilla Glass Shimmer on Hover */
+.neu-btn-primary:hover,
+.neu-btn-success:hover,
+.neu-btn-danger:hover {
+  box-shadow: 
+    0 12px 28px -3px var(--gorilla-glow, rgba(27, 94, 190, 0.45)),
+    inset 0 1px 2px rgba(255, 255, 255, 0.7) !important;
+  border: 1px solid var(--gorilla-border, rgba(255, 255, 255, 0.6)) !important;
+  transform: translateY(-2px);
+}
+
+/* Table Rows: Crystal Glass Refraction */
+.excel-table tbody tr:hover {
+  backdrop-filter: blur(12px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(170%) !important;
+  background: var(--gorilla-bg, linear-gradient(135deg, rgba(27, 94, 190, 0.1), rgba(255, 255, 255, 0.6))) !important;
+  box-shadow: 0 4px 16px -2px var(--gorilla-glow, rgba(27, 94, 190, 0.2)) !important;
+}
+
+.excel-table tbody tr:hover td {
+  background: transparent !important;
+}
+
+/* Teacher List Items: Hiệu ứng kính Gorilla Glass êm dịu, không chớp giật */
+.teacher-list-card {
+  transition: 
+    background 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    backdrop-filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+.teacher-list-card:hover {
+  backdrop-filter: blur(14px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(180%) !important;
+  background: var(--gorilla-bg, linear-gradient(135deg, rgba(27, 94, 190, 0.12), rgba(255, 255, 255, 0.7))) !important;
+  border-color: var(--gorilla-border, rgba(27, 94, 190, 0.5)) !important;
+  box-shadow: 
+    0 8px 20px -2px var(--gorilla-glow, rgba(27, 94, 190, 0.25)),
+    inset 0 1px 2px rgba(255, 255, 255, 0.95) !important;
+  transform: translateX(4px) !important;
+}
+
+.teacher-list-card.active-teacher {
+  background: linear-gradient(135deg, #dbe8f7, #ebf3fd) !important;
+  border-left: 4px solid var(--color-primary) !important;
+  box-shadow: var(--shadow-inset-sm) !important;
+}
+
+/* Class Chips and Nav Tabs */
+.class-chip:not(.active):hover,
+.nav-tab:not(.active):hover {
+  backdrop-filter: blur(14px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(180%) !important;
+  background: var(--gorilla-bg, linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.5))) !important;
+  border-color: var(--gorilla-border, rgba(27, 94, 190, 0.5)) !important;
+  box-shadow: 
+    0 8px 22px -3px var(--gorilla-glow, rgba(27, 94, 190, 0.28)),
+    inset 0 1px 2px rgba(255, 255, 255, 0.95) !important;
+  transform: translateY(-2px);
+}
+
+
+.neu-btn {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: none;
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: var(--shadow-flat);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  user-select: none;
+  text-decoration: none;
+}
+
+.neu-btn:hover {
+  box-shadow: var(--shadow-hover);
+  color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.neu-btn:active, .neu-btn.active {
+  box-shadow: var(--shadow-pressed);
+  color: var(--color-primary-dark);
+  transform: translateY(1px);
+}
+
+.neu-btn-primary {
+  background: linear-gradient(135deg, #1b5ebe, #134694);
+  color: #ffffff !important;
+  box-shadow: 4px 4px 12px #b0bfd3, -3px -3px 8px #ffffff;
+}
+
+.neu-btn-primary:hover {
+  background: linear-gradient(135deg, #256bd1, #164ea5);
+  box-shadow: 6px 6px 16px #a5b7ce, -4px -4px 10px #ffffff;
+  color: #ffffff !important;
+}
+
+.neu-btn-primary:active {
+  box-shadow: inset 3px 3px 6px #0d2c5e, inset -2px -2px 5px #2d73dc;
+}
+
+.neu-btn-success {
+  background: linear-gradient(135deg, #198754, #10633c);
+  color: #ffffff !important;
+  box-shadow: 4px 4px 12px #b0bfd3, -3px -3px 8px #ffffff;
+}
+
+.neu-btn-danger {
+  background: linear-gradient(135deg, #dc3545, #aa1927);
+  color: #ffffff !important;
+  box-shadow: 4px 4px 10px #b0bfd3, -3px -3px 8px #ffffff;
+}
+
+/* Inset Input & Select */
+.neu-input, .neu-select {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-size: 15px;
+  color: var(--text-main);
+  box-shadow: var(--shadow-inset);
+  outline: none;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.neu-input:focus, .neu-select:focus {
+  box-shadow: inset 4px 4px 7px #b8c7da, inset -4px -4px 7px #ffffff;
+  border-color: rgba(27, 94, 190, 0.4);
+}
+
+.neu-input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Badge Chips */
+.neu-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-main);
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.neu-chip:hover {
+  color: var(--color-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-flat);
+}
+
+.neu-chip.active {
+  box-shadow: var(--shadow-inset-sm);
+  color: var(--color-primary);
+  font-weight: 700;
+  border-color: var(--color-primary-light);
+}
+
+/* Excel Grid Styling */
+.excel-table-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  box-shadow: var(--shadow-inset);
+  background: rgba(232, 238, 245, 0.6);
+  padding: 8px;
+}
+
+.excel-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14.5px;
+  background: transparent;
+}
+
+.excel-table th {
+  background: #dfe7f1;
+  color: var(--text-bold);
+  font-weight: 700;
+  padding: 10px 8px;
+  text-align: center;
+  border: 1px solid #c7d4e4;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.excel-table td {
+  padding: 7px 8px;
+  border: 1px solid #d4dfec;
+  background: rgba(255, 255, 255, 0.4);
+  vertical-align: middle;
+}
+
+.excel-table tbody tr:hover td {
+  background: rgba(214, 228, 247, 0.45);
+}
+
+.excel-cell-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  font-size: 14.5px;
+  color: var(--text-main);
+  border-radius: 5px;
+  transition: all 0.15s ease;
+}
+
+.excel-cell-input:focus {
+  outline: none;
+  background: #ffffff;
+  box-shadow: inset 1px 1px 3px #cad4e2, inset -1px -1px 3px #ffffff;
+}
+
+/* Subtotal / Group Row */
+.group-header-row td {
+  background: #dbe6f4 !important;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  font-size: 15px;
+  padding: 8px 12px;
+  border-top: 2px solid #b8cbdf !important;
+}
+
+.group-subtotal-row td {
+  background: #e1ebf7 !important;
+  font-weight: 700;
+  color: #123769;
+  font-size: 15px;
+  padding: 8px 12px;
+  border-bottom: 2px solid #b8cbdf !important;
+}
+
+.grand-total-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #e4ecf7, #edf3fa);
+  border-radius: 12px;
+  box-shadow: var(--shadow-flat);
+  border-left: 6px solid var(--color-primary);
+}
+
+/* Navigation Tab Bar */
+.nav-tab-container {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  background: var(--bg-card);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-tab {
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-sub);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.nav-tab.active {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-pressed);
+  color: var(--color-primary);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #e2eaf4;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b5c5d8;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ab0c8;
+}
+
+/* Screen mode: Hide the dedicated print engine completely */
+.print-only-container {
+  display: none !important;
+}
+
+/* ==========================================================================
+   PRINT SPECIFICATION - CHUẨN A4 ĐỨNG (PORTRAIT) VỪA KHÍT TRANG KHÔNG BỊ CẮT
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 8mm 8mm 8mm;
+  }
+  
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 11pt !important;
+    line-height: 1.3;
+    width: 100% !important;
+    min-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  #root, 
+  #root > div {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: auto !important;
+    width: 100% !important;
+  }
+  
+  /* ẨN TOÀN BỘ GIAO DIỆN MÀN HÌNH CHỈ IN BẢN IN CHUẨN A4 */
+  #root > div > header,
+  #root > div > nav,
+  #root > div > main,
+  #root > div > footer,
+  main, 
+  nav, 
+  header, 
+  aside, 
+  footer,
+  .no-print, 
+  .modal-backdrop,
+  .left-sidebar,
+  .neu-card,
+  .neu-btn,
+  .nav-tab-container,
+  .action-toolbar {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* HIỂN THỊ DUY NHẤT CONTAINER IN A4 ĐỨNG ĐẦY ĐỦ 100% CHIỀU RỘNG */
+  .print-only-container {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: static !important;
+  }
+
+  /* BẢNG IN CHUẨN A4 ĐỨNG: GOM NHIỀU LỚP VÀO 1 TRANG ĐỂ TIẾT KIỆM GIẤY */
+  .print-page-wrapper,
+  .print-class-block {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin-bottom: 14px !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1.5px dashed #666666 !important;
+  }
+
+  /* Khi tắt chế độ gom hoặc ép ngắt trang */
+  .print-class-block.force-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+    border-bottom: none !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .print-page-wrapper:last-child,
+  .print-class-block:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    border-bottom: none !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Bảng in chuẩn A4 đứng: Tràn đều 100% chiều rộng, không bị cắt cột */
+  table.print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 5px !important;
+    font-size: 10pt !important;
+    table-layout: auto !important;
+  }
+
+  table.print-table th, 
+  table.print-table td {
+    border: 1px solid #000000 !important;
+    padding: 3.5px 6px !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    word-break: normal !important;
+  }
+
+  table.print-table th {
+    background-color: #f2f2f2 !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    font-size: 10pt !important;
+  }
+
+  table.print-table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  table.print-table thead {
+    display: table-header-group !important;
+  }
+
+  /* Chữ ký (khi được bật) */
+  .print-signature-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+  }
+}
