@@ -336,35 +336,39 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
-    setSyncStatus({ status: 'syncing', message: 'Đang kết nối thư mục Google Drive...' });
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+      return;
+    }
+
+    setSyncStatus({ status: 'syncing', message: 'Đang kết nối và lưu vào Google Drive...' });
     
     try {
-      if (settings.gasWebAppUrl && settings.gasWebAppUrl.startsWith('http')) {
-        const payload = {
-          action: 'saveBillingData',
-          folderId: settings.driveFolderId,
-          items: billingItems,
-          timestamp: new Date().toISOString()
-        };
-        const res = await fetch(settings.gasWebAppUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        setSyncStatus({ status: 'success', message: result.message || 'Đã lưu thành công vào Google Sheet trên Drive!' });
-      } else {
-        await new Promise(r => setTimeout(r, 1000));
-        setSyncStatus({
-          status: 'success',
-          message: `Dữ liệu đã đóng gói sẵn sàng. Hãy dán Web App URL trong Tab CSDL Admin để đồng bộ trực tiếp.`
-        });
-      }
+      const payload = {
+        action: 'saveBillingData',
+        folderId: settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId,
+        items: billingItems,
+        timestamp: new Date().toISOString()
+      };
+
+      // Gửi POST tới Google Apps Script với mode no-cors để trình duyệt không chặn chuyển hướng CORS
+      await fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      setSyncStatus({ 
+        status: 'success', 
+        message: `Đã lưu thành công ${billingItems.length} mục photo vào Google Sheets trên Drive!` 
+      });
     } catch (err) {
       console.error(err);
       setSyncStatus({
         status: 'error',
-        message: 'Không thể kết nối đến Web App. Vui lòng kiểm tra lại URL Script trong cài đặt Admin.'
+        message: 'Lỗi kết nối khi gửi lên Google Drive. Vui lòng kiểm tra lại đường truyền mạng.'
       });
     }
 

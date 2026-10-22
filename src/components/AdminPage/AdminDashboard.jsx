@@ -1185,7 +1185,10 @@ function doGet(e) {
                 style={{ flex: '1' }}
               />
               <button 
-                onClick={() => alert('Đã lưu URL kết nối CSDL thành công!')}
+                onClick={() => {
+                  localStorage.setItem('photo_settings', JSON.stringify(settings));
+                  alert('Đã lưu URL kết nối CSDL Google Drive thành công!');
+                }}
                 className="neu-btn neu-btn-primary"
                 style={{ padding: '8px 18px', fontSize: '13.5px' }}
               >
