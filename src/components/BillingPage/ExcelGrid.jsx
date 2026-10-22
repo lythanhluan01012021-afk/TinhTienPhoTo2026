@@ -15,7 +15,8 @@ export const ExcelGrid = () => {
     settings,
     totalClassDebts,
     classDebts,
-    setIsGroupedView
+    setIsGroupedView,
+    currentWeek
   } = useApp();
 
   const displayedItems = billingItems;
@@ -78,10 +79,10 @@ export const ExcelGrid = () => {
           </div>
           <div>
             <h2 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0 }}>
-              BẢNG TÍNH TIỀN PHOTO (EXCEL-LIKE)
+              BẢNG TÍNH TIỀN PHOTO ({currentWeek})
             </h2>
             <p style={{ fontSize: '12.5px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
-              Hiện có {billingItems.length} dòng dữ liệu • Nhấp vào ô để sửa trực tiếp • Tự động tính Thành tiền
+              Hiện có {billingItems.length} dòng dữ liệu của {currentWeek} • Nhấp vào ô để sửa trực tiếp • Tự động tính Thành tiền
             </p>
           </div>
         </div>

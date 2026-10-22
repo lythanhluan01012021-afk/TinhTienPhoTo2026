@@ -84,9 +84,9 @@ function doPost(e) {
         }
       });
 
-      // CẬP NHẬT HOẶC TẠO TAB CÔNG NỢ CÁC LỚP
+      // CẬP NHẬT HOẶC TẠO TAB CÔNG NỢ THEO TUẦN (CongNo_TheoTuan)
       if (data.classDebts && data.classDebts.length > 0) {
-        var debtSheet = getOrCreateSimpleDebtSheet(ss);
+        var debtSheet = getOrCreateDebtSheet(ss);
         var lastDebtRow = debtSheet.getLastRow();
         var debtKeyToRowMap = {};
 
@@ -102,60 +102,30 @@ function doPost(e) {
 
         data.classDebts.forEach(function(d) {
           if (!d.className) return;
+          var weekVal = d.week || data.currentWeek || "Tuần 1";
           var cleanClass = d.className.toString().trim();
+          var keyVal = d.key || (weekVal + "_" + cleanClass);
+          var previousDebt = Number(d.previousDebt || d.debtAmount) || 0;
+          var photoAmount = Number(d.photoAmount) || 0;
+          var totalDue = Number(d.totalDue) || (previousDebt + photoAmount);
+
           var debtRowValues = [
-            cleanClass,
-            d.homeroomTeacher || "",
-            Number(d.debtAmount) || 0,
-            d.note || "",
-            d.updatedAt || timestamp
+            keyVal,                         // Cột A: Mã Định Danh (Tuần_Lớp)
+            weekVal,                        // Cột B: Tuần
+            cleanClass,                     // Cột C: Lớp
+            d.homeroomTeacher || "",        // Cột D: GVCN
+            previousDebt,                   // Cột E: Tiền Nợ Tuần Trước (VNĐ)
+            photoAmount,                    // Cột F: Tiền Photo Tuần Này (VNĐ)
+            totalDue,                       // Cột G: TỔNG CẦN THU (VNĐ)
+            d.note || "",                   // Cột H: Ghi Chú Nợ
+            d.updatedAt || timestamp        // Cột I: Ngày Cập Nhật
           ];
 
-          if (debtKeyToRowMap[cleanClass]) {
-            debtSheet.getRange(debtKeyToRowMap[cleanClass], 1, 1, 5).setValues([debtRowValues]);
+          if (debtKeyToRowMap[keyVal]) {
+            debtSheet.getRange(debtKeyToRowMap[keyVal], 1, 1, 9).setValues([debtRowValues]);
           } else {
             debtSheet.appendRow(debtRowValues);
-            debtKeyToRowMap[cleanClass] = debtSheet.getLastRow();
-          }
-        });
-      } else if (data.weeklyDebtSummaries && data.weeklyDebtSummaries.length > 0) {
-        var debtSheet = getOrCreateDebtSheet(ss);
-        var lastDebtRow = debtSheet.getLastRow();
-        var debtKeyToRowMap = {};
-
-        if (lastDebtRow > 1) {
-          var existingKeys = debtSheet.getRange(2, 1, lastDebtRow - 1, 1).getValues();
-          for (var k = 0; k < existingKeys.length; k++) {
-            var dKey = existingKeys[k][0];
-            if (dKey) {
-              debtKeyToRowMap[dKey.toString().trim()] = (k + 2);
-            }
-          }
-        }
-
-        data.weeklyDebtSummaries.forEach(function(d) {
-          if (!d.key) return;
-          var cleanKey = d.key.toString().trim();
-          var debtRowValues = [
-            cleanKey,
-            d.week || "",
-            d.className || "",
-            d.homeroomTeacher || "",
-            Number(d.billedThisWeek) || 0,
-            Number(d.previousDebt) || 0,
-            Number(d.totalDue) || 0,
-            Number(d.paidAmount) || 0,
-            Number(d.remainingDebt) || 0,
-            d.statusLabel || "",
-            d.note || "",
-            timestamp
-          ];
-
-          if (debtKeyToRowMap[cleanKey]) {
-            debtSheet.getRange(debtKeyToRowMap[cleanKey], 1, 1, 12).setValues([debtRowValues]);
-          } else {
-            debtSheet.appendRow(debtRowValues);
-            debtKeyToRowMap[cleanKey] = debtSheet.getLastRow();
+            debtKeyToRowMap[keyVal] = debtSheet.getLastRow();
           }
         });
       }
@@ -354,16 +324,13 @@ function getOrCreateDebtSheet(ss) {
       "Tuần",
       "Lớp",
       "GVCN",
-      "Phát Sinh Tuần Này (VNĐ)",
-      "Nợ Cũ Mang Sang (VNĐ)",
-      "TỔNG CẦN NỘP (VNĐ)",
-      "ĐÃ NỘP (VNĐ)",
-      "CÒN THIẾU CHUYỂN TUẦN SAU (VNĐ)",
-      "Trạng Thái",
+      "Tiền Nợ Tuần Trước (VNĐ)",
+      "Tiền Photo Tuần Này (VNĐ)",
+      "TỔNG CẦN THU (VNĐ)",
       "Ghi Chú Nợ",
       "Ngày Cập Nhật"
     ]);
-    sheet.getRange(1, 1, 1, 12)
+    sheet.getRange(1, 1, 1, 9)
          .setFontWeight("bold")
          .setBackground("#0f766e")
          .setFontColor("#ffffff")

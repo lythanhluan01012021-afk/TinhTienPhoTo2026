@@ -68,7 +68,8 @@ export const PrintViewA4 = () => {
     getHomeroomTeacher,
     getStudentCountForClass,
     classDebts,
-    totalClassDebts
+    totalClassDebts,
+    currentWeek
   } = useApp();
 
   const [printTemplate, setPrintTemplate] = useState('class_invoice'); // 'class_invoice' | 'school_summary'
@@ -394,7 +395,7 @@ export const PrintViewA4 = () => {
                           {/* Title */}
                           <div style={{ textAlign: 'center', marginBottom: '6px' }}>
                             <h2 style={{ fontSize: '13pt', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 2px 0' }}>
-                              BẢNG KÊ QUYẾT TOÁN TIỀN PHOTO TÀI LIỆU
+                              BẢNG KÊ QUYẾT TOÁN TIỀN PHOTO TÀI LIỆU ({currentWeek})
                             </h2>
                             <div style={{ fontSize: '10.5pt' }}>
                               <b>Lớp: {group.className}</b> &nbsp;&nbsp;|&nbsp;&nbsp; 
@@ -512,7 +513,7 @@ export const PrintViewA4 = () => {
                   <div className="print-page-wrapper">
                     <div style={{ textAlign: 'center', marginBottom: '14px' }}>
                       <h2 style={{ fontSize: '16pt', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        BẢNG TỔNG HỢP QUYẾT TOÁN KINH PHÍ PHOTOCOPY
+                        BẢNG TỔNG HỢP QUYẾT TOÁN KINH PHÍ PHOTOCOPY ({currentWeek})
                       </h2>
                       <div style={{ fontSize: '12pt', fontStyle: 'italic' }}>
                         Niên khóa: {settings.schoolYear} • {settings.semester}

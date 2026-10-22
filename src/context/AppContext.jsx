@@ -176,14 +176,14 @@ export const AppProvider = ({ children }) => {
 
   // Weekly Billing & Debt Tracking State
   const [availableWeeks, setAvailableWeeks] = useState(() => {
-    const saved = localStorage.getItem('photo_available_weeks');
+    const saved = localStorage.getItem('photo_available_weeks_v3');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5', 'Tuần 6', 'Tuần 7', 'Tuần 8', 'Tuần 9', 'Tuần 10'];
+    return ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5', 'Tuần 6'];
   });
 
   const [currentWeek, setCurrentWeek] = useState(() => {
@@ -201,13 +201,23 @@ export const AppProvider = ({ children }) => {
     return {};
   });
 
-  // Simple Class Debts: Quản lý trực tiếp tiền nợ / thiếu của từng lớp
-  // Format: { [className]: { amount: number, note: string, updatedAt: string } }
-  const [classDebts, setClassDebts] = useState(() => {
-    const saved = localStorage.getItem('photo_class_debts');
+  // Quản lý tiền nợ / thiếu theo từng tuần: { [week]: { [className]: { amount, note, updatedAt } } }
+  const [weeklyDebts, setWeeklyDebts] = useState(() => {
+    const saved = localStorage.getItem('photo_weekly_debts_v2');
     if (saved) {
       try {
         return JSON.parse(saved) || {};
+      } catch (e) {}
+    }
+    // Backward compatibility from photo_class_debts
+    const oldDebts = localStorage.getItem('photo_class_debts');
+    if (oldDebts) {
+      try {
+        const parsed = JSON.parse(oldDebts);
+        if (parsed && typeof parsed === 'object') {
+          const initWeek = localStorage.getItem('photo_current_week') || 'Tuần 1';
+          return { [initWeek]: parsed };
+        }
       } catch (e) {}
     }
     return {};
@@ -255,7 +265,7 @@ export const AppProvider = ({ children }) => {
   }, [billingItems]);
 
   useEffect(() => {
-    localStorage.setItem('photo_available_weeks', JSON.stringify(availableWeeks));
+    localStorage.setItem('photo_available_weeks_v3', JSON.stringify(availableWeeks));
   }, [availableWeeks]);
 
   useEffect(() => {
@@ -267,58 +277,97 @@ export const AppProvider = ({ children }) => {
   }, [classPayments]);
 
   useEffect(() => {
-    localStorage.setItem('photo_class_debts', JSON.stringify(classDebts));
-  }, [classDebts]);
+    localStorage.setItem('photo_weekly_debts_v2', JSON.stringify(weeklyDebts));
+  }, [weeklyDebts]);
 
-  // Cập nhật số tiền thiếu / nợ của 1 lớp
+  // Thêm tuần mới vào danh sách tuần (Tuần 1..6 -> Thêm Tuần 7, Tuần 8...)
+  const addWeek = (customWeekName) => {
+    let newWeek = customWeekName ? customWeekName.trim() : '';
+    if (!newWeek) {
+      let maxNum = 0;
+      availableWeeks.forEach(w => {
+        const m = w.match(/(\d+)/);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      newWeek = `Tuần ${maxNum + 1}`;
+    }
+
+    if (!availableWeeks.includes(newWeek)) {
+      setAvailableWeeks(prev => {
+        const next = [...prev, newWeek];
+        localStorage.setItem('photo_available_weeks_v3', JSON.stringify(next));
+        return next;
+      });
+    }
+    setCurrentWeek(newWeek);
+    localStorage.setItem('photo_current_week', newWeek);
+    return newWeek;
+  };
+
+  // classDebts tương ứng với tuần hiện tại
+  const classDebts = useMemo(() => {
+    return weeklyDebts[currentWeek] || {};
+  }, [weeklyDebts, currentWeek]);
+
+  // Cập nhật số tiền thiếu / nợ của 1 lớp trong tuần hiện tại
   const updateClassDebt = (className, amount, note = '') => {
     if (!className) return;
-    setClassDebts(prev => {
-      const numAmount = Math.max(0, Number(amount) || 0);
+    const numAmount = Math.max(0, Number(amount) || 0);
+    setWeeklyDebts(prev => {
+      const curWeek = { ...(prev[currentWeek] || {}) };
       if (numAmount === 0 && !note) {
-        const next = { ...prev };
-        delete next[className];
-        return next;
+        delete curWeek[className];
+      } else {
+        curWeek[className] = {
+          amount: numAmount,
+          note: note !== undefined ? note : (curWeek[className]?.note || ''),
+          updatedAt: new Date().toLocaleDateString('vi-VN')
+        };
       }
       return {
         ...prev,
-        [className]: {
-          amount: numAmount,
-          note: note !== undefined ? note : (prev[className]?.note || ''),
-          updatedAt: new Date().toLocaleDateString('vi-VN')
-        }
+        [currentWeek]: curWeek
       };
     });
   };
 
-  // Xóa nợ của 1 lớp
+  // Xóa nợ của 1 lớp trong tuần hiện tại
   const removeClassDebt = (className) => {
     if (!className) return;
-    setClassDebts(prev => {
-      const next = { ...prev };
-      delete next[className];
-      return next;
+    setWeeklyDebts(prev => {
+      const curWeek = { ...(prev[currentWeek] || {}) };
+      delete curWeek[className];
+      return {
+        ...prev,
+        [currentWeek]: curWeek
+      };
     });
   };
 
-  // Xóa toàn bộ nợ
+  // Xóa toàn bộ nợ của tuần hiện tại
   const clearAllClassDebts = () => {
-    setClassDebts({});
+    setWeeklyDebts(prev => ({
+      ...prev,
+      [currentWeek]: {}
+    }));
   };
 
-  // Lấy số tiền nợ của 1 lớp
+  // Lấy số tiền nợ của 1 lớp trong tuần hiện tại
   const getClassDebt = (className) => {
     if (!className) return 0;
     return Number(classDebts[className]?.amount) || 0;
   };
 
-  // Lấy ghi chú nợ của 1 lớp
+  // Lấy ghi chú nợ của 1 lớp trong tuần hiện tại
   const getClassDebtNote = (className) => {
     if (!className) return '';
     return classDebts[className]?.note || '';
   };
 
-  // Tổng nợ tất cả các lớp
+  // Tổng nợ tất cả các lớp trong tuần hiện tại
   const totalClassDebts = useMemo(() => {
     return Object.values(classDebts).reduce((sum, d) => sum + (Number(d?.amount) || 0), 0);
   }, [classDebts]);
@@ -433,15 +482,6 @@ export const AppProvider = ({ children }) => {
     });
   };
 
-  // Thêm tuần mới vào danh sách tuần
-  const addWeek = (newWeekName) => {
-    if (!newWeekName || !newWeekName.trim()) return;
-    const clean = newWeekName.trim();
-    if (!availableWeeks.includes(clean)) {
-      setAvailableWeeks(prev => [...prev, clean]);
-    }
-    setCurrentWeek(clean);
-  };
 
   // Tính toán công nợ tích lũy qua các tuần của một lớp học (Chuyển nợ sang tuần sau)
   const getClassDebtSummary = (className, targetWeek = currentWeek) => {
@@ -648,14 +688,25 @@ export const AppProvider = ({ children }) => {
   // Clear entire billing grid and debts (với cơ chế bảo vệ doanh thu)
   const clearBillingGrid = () => {
     if (billingItems.length > 0 && billingItems.some(i => !i.isSynced)) {
-      if (!window.confirm('CẢNH BÁO BẢO VỆ DOANH THU: Bảng tính đang có dòng photo chưa được "Lưu CSDL"! Nếu làm mới lúc này, bạn sẽ bị mất thông tin tính tiền. Bạn có chắc chắn muốn xóa bảng tính và công nợ để bắt đầu phiên mới không?')) {
+      if (!window.confirm('CẢNH BÁO BẢO VỆ DOANH THU: Bảng tính đang có dòng photo chưa được "Lưu CSDL"! Nếu làm mới lúc này, bạn sẽ bị mất thông tin tính tiền. Bạn có chắc chắn muốn xóa bảng tính và công nợ để bắt đầu tuần mới không?')) {
         return;
       }
-    } else if (!window.confirm('Bạn có chắc chắn muốn làm mới (xóa toàn bộ bảng tính và công nợ) để bắt đầu tuần mới?')) {
+    } else if (!window.confirm(`Bạn có chắc chắn muốn làm mới (xóa toàn bộ bảng tính và công nợ của ${currentWeek})?`)) {
       return;
     }
     setBillingItems([]);
-    setClassDebts({});
+    clearAllClassDebts();
+  };
+
+  const setClassDebts = (debtsOrUpdater) => {
+    setWeeklyDebts(prev => {
+      const current = prev[currentWeek] || {};
+      const next = typeof debtsOrUpdater === 'function' ? debtsOrUpdater(current) : debtsOrUpdater;
+      return {
+        ...prev,
+        [currentWeek]: next || {}
+      };
+    });
   };
 
   // Reset entire app data to empty
@@ -692,8 +743,8 @@ export const AppProvider = ({ children }) => {
 
   // Sync to Google Sheets Web App (Hỗ trợ UPSERT - cập nhật thông minh không trùng lặp)
   const syncToGoogleSheets = async () => {
-    if (billingItems.length === 0) {
-      alert('Bảng tính hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.');
+    if (billingItems.length === 0 && Object.keys(classDebts).length === 0) {
+      alert('Bảng tính và danh sách công nợ hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.');
       return;
     }
 
@@ -703,23 +754,37 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
-    setSyncStatus({ status: 'syncing', message: 'Đang đồng bộ đơn photo & công nợ tuần lên Google Sheets...' });
+    setSyncStatus({ status: 'syncing', message: `Đang đồng bộ đơn photo & công nợ (${currentWeek}) lên Google Sheets...` });
     
     try {
-      // Chuẩn bị dữ liệu công nợ các lớp
-      const classDebtsList = Object.entries(classDebts).filter(([_, d]) => (d?.amount || 0) > 0).map(([cls, d]) => ({
-        className: cls,
-        homeroomTeacher: getHomeroomTeacher(cls),
-        debtAmount: Number(d?.amount) || 0,
-        note: d?.note || '',
-        updatedAt: d?.updatedAt || new Date().toLocaleDateString('vi-VN')
-      }));
+      // Chuẩn bị dữ liệu công nợ các lớp của tuần này (Lưu theo tuần trên CSDL)
+      const classDebtsList = Object.entries(classDebts).filter(([_, d]) => (d?.amount || 0) > 0).map(([cls, d]) => {
+        const classPhotoAmount = billingItems
+          .filter(i => (i.className || '').toLowerCase() === cls.toLowerCase())
+          .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+        const debtNum = Number(d?.amount) || 0;
+
+        return {
+          key: `${currentWeek}_${cls}`,
+          week: currentWeek,
+          className: cls,
+          homeroomTeacher: getHomeroomTeacher(cls),
+          previousDebt: debtNum,
+          debtAmount: debtNum,
+          photoAmount: classPhotoAmount,
+          totalDue: debtNum + classPhotoAmount,
+          note: d?.note || '',
+          updatedAt: d?.updatedAt || new Date().toLocaleDateString('vi-VN')
+        };
+      });
 
       const payload = {
         action: 'saveBillingData',
         folderId: settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId,
+        currentWeek: currentWeek,
         items: billingItems.map(item => ({
           ...item,
+          week: item.week || currentWeek,
           statusLabel: ORDER_STATUSES[item.status]?.label || (item.isPaid ? 'Đã thanh toán' : 'Chờ gửi tài liệu')
         })),
         classDebts: classDebtsList,

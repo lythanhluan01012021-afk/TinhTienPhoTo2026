@@ -27,6 +27,10 @@ export const GroupingView = () => {
     removeClassDebt,
     clearAllClassDebts,
     totalClassDebts,
+    currentWeek,
+    setCurrentWeek,
+    availableWeeks,
+    addWeek,
     setIsGroupedView, 
     setIsPrintModalOpen, 
     setPrintClassFilter,
@@ -39,7 +43,7 @@ export const GroupingView = () => {
   const [debtInput, setDebtInput] = useState('');
   const [debtNote, setDebtNote] = useState('');
   const [searchClass, setSearchClass] = useState('');
-  const [filterMode, setFilterMode] = useState('ALL'); // 'ALL' | 'DEBT_ONLY'
+  const [filterMode, setFilterMode] = useState('DEBT_ONLY'); // Mặc định chỉ hiển thị danh sách lớp có nợ/thiếu theo yêu cầu
   const [expandedClass, setExpandedClass] = useState(null); // className to expand details
 
   // Định dạng tiền tệ VNĐ
@@ -86,30 +90,50 @@ export const GroupingView = () => {
     return Object.values(map).sort((a, b) => a.className.localeCompare(b.className));
   }, [billingItems, classDebts]);
 
-  // Lọc theo tìm kiếm lớp / GVCN & Bộ lọc nợ
-  const filteredGroups = useMemo(() => {
-    return groupedData.filter(g => {
-      const debtAmount = Number(classDebts?.[g.className]?.amount) || 0;
+  // Danh sách các lớp ĐÃ ĐƯỢC CHỌN và nhập tiền nợ/thiếu (Chỉ có dữ liệu khi người dùng chọn và lưu)
+  const debtClassesList = useMemo(() => {
+    const keys = Object.keys(classDebts || {}).filter(cls => (Number(classDebts[cls]?.amount) || 0) > 0);
+    
+    return keys.map(cls => {
+      const debt = classDebts[cls];
+      const debtAmount = Number(debt?.amount) || 0;
       
-      // Bộ lọc chỉ xem lớp có nợ
-      if (filterMode === 'DEBT_ONLY' && debtAmount <= 0) {
-        return false;
-      }
+      const classItems = billingItems.filter(item => (item.className || '').toLowerCase() === cls.toLowerCase());
+      let photoCopies = 0;
+      let photoAmount = 0;
+      classItems.forEach(item => {
+        const copies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+        photoCopies += copies;
+        photoAmount += (copies * (Number(item.unitPrice) || 0));
+      });
 
-      // Tìm kiếm
-      if (searchClass.trim()) {
-        const q = searchClass.trim().toLowerCase();
-        const hr = (getHomeroomTeacher(g.className) || '').toLowerCase();
-        return g.className.toLowerCase().includes(q) || hr.includes(q);
-      }
-      return true;
+      return {
+        className: cls,
+        items: classItems,
+        totalCopies: photoCopies,
+        photoAmount: photoAmount,
+        debtAmount: debtAmount,
+        debtNote: debt?.note || '',
+        totalBill: photoAmount + debtAmount,
+        updatedAt: debt?.updatedAt || ''
+      };
+    }).sort((a, b) => a.className.localeCompare(b.className));
+  }, [classDebts, billingItems]);
+
+  // Dữ liệu hiển thị trong bảng: Nếu ở chế độ DEBT_ONLY thì CHỈ lấy các lớp có nợ
+  const displayedGroups = useMemo(() => {
+    const source = filterMode === 'DEBT_ONLY' ? debtClassesList : groupedData;
+    
+    if (!searchClass.trim()) return source;
+    const q = searchClass.trim().toLowerCase();
+    return source.filter(g => {
+      const hr = (getHomeroomTeacher(g.className) || '').toLowerCase();
+      return g.className.toLowerCase().includes(q) || hr.includes(q);
     });
-  }, [groupedData, filterMode, searchClass, classDebts, getHomeroomTeacher]);
+  }, [filterMode, debtClassesList, groupedData, searchClass, getHomeroomTeacher]);
 
   // Số lượng lớp đang có nợ
-  const debtClassCount = useMemo(() => {
-    return Object.keys(classDebts || {}).filter(cls => (classDebts[cls]?.amount || 0) > 0).length;
-  }, [classDebts]);
+  const debtClassCount = debtClassesList.length;
 
   // Tổng cộng toàn trường
   const overallTotals = useMemo(() => {
@@ -126,6 +150,15 @@ export const GroupingView = () => {
       grandTotal: photo + totalClassDebts
     };
   }, [groupedData, totalClassDebts]);
+
+  // Xử lý thêm tuần mới
+  const handleAddNewWeek = () => {
+    const nextNum = availableWeeks.length + 1;
+    const custom = window.prompt(`Nhập tên tuần mới cần thêm vào danh sách (Gợi ý: Tuần ${nextNum}):`, `Tuần ${nextNum}`);
+    if (custom && custom.trim()) {
+      addWeek(custom.trim());
+    }
+  };
 
   // Xử lý lưu nợ từ form
   const handleApplyDebt = (e) => {
@@ -208,9 +241,41 @@ export const GroupingView = () => {
               BẢNG RÀ SOÁT CÔNG NỢ & TỔNG BILL CÁC LỚP
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
-              Rà soát các lớp thiếu/không trả tuần trước, hệ thống tự động cộng dồn vào Bill tuần này để in ấn
+              Rà soát các lớp thiếu/không trả tuần trước, hệ thống tự động cộng dồn vào Bill ({currentWeek}) để in ấn
             </p>
           </div>
+        </div>
+
+        {/* NÚT CHỌN TUẦN & THÊM TUẦN MỚI */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#eff6ff', padding: '6px 12px', borderRadius: '10px', border: '1.5px solid #93c5fd' }}>
+          <span style={{ fontSize: '13.5px', fontWeight: 'bold', color: '#134694' }}>📅 Tuần làm việc:</span>
+          <select 
+            value={currentWeek} 
+            onChange={(e) => setCurrentWeek(e.target.value)}
+            style={{ 
+              padding: '6px 12px', 
+              borderRadius: '6px', 
+              border: '1.5px solid #2563eb', 
+              fontSize: '13.5px', 
+              fontWeight: 'bold', 
+              color: '#1e40af', 
+              background: '#ffffff',
+              cursor: 'pointer' 
+            }}
+          >
+            {availableWeeks.map(w => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleAddNewWeek}
+            className="neu-btn neu-btn-primary"
+            style={{ fontSize: '12.5px', padding: '6px 11px', fontWeight: 'bold' }}
+            title="Thêm tuần mới vào danh sách tuần"
+          >
+            ➕ Thêm tuần mới
+          </button>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -415,21 +480,6 @@ export const GroupingView = () => {
             <div style={{ display: 'flex', gap: '6px' }}>
               <button
                 type="button"
-                onClick={() => setFilterMode('ALL')}
-                className={`neu-chip ${filterMode === 'ALL' ? 'active' : ''}`}
-                style={{
-                  cursor: 'pointer',
-                  fontWeight: filterMode === 'ALL' ? 'bold' : 'normal',
-                  background: filterMode === 'ALL' ? '#1b5ebe' : '#f1f5f9',
-                  color: filterMode === 'ALL' ? '#ffffff' : '#475569',
-                  border: '1px solid #cbd5e1'
-                }}
-              >
-                Tất cả các lớp ({groupedData.length})
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setFilterMode('DEBT_ONLY')}
                 className={`neu-chip ${filterMode === 'DEBT_ONLY' ? 'active' : ''}`}
                 style={{
@@ -437,10 +487,27 @@ export const GroupingView = () => {
                   fontWeight: filterMode === 'DEBT_ONLY' ? 'bold' : 'normal',
                   background: filterMode === 'DEBT_ONLY' ? '#dc2626' : '#fef2f2',
                   color: filterMode === 'DEBT_ONLY' ? '#ffffff' : '#b91c1c',
-                  border: '1px solid #fecaca'
+                  border: '1px solid #fecaca',
+                  padding: '5px 12px'
                 }}
               >
-                🔴 Chỉ lớp có nợ cần cộng dồn ({debtClassCount})
+                🔴 Danh Sách Lớp Nợ / Thiếu Cần Cộng Dồn ({debtClassCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterMode('ALL')}
+                className={`neu-chip ${filterMode === 'ALL' ? 'active' : ''}`}
+                style={{
+                  cursor: 'pointer',
+                  fontWeight: filterMode === 'ALL' ? 'bold' : 'normal',
+                  background: filterMode === 'ALL' ? '#1b5ebe' : '#f1f5f9',
+                  color: filterMode === 'ALL' ? '#ffffff' : '#475569',
+                  border: '1px solid #cbd5e1',
+                  padding: '5px 12px'
+                }}
+              >
+                Xem tất cả các lớp ({groupedData.length})
               </button>
             </div>
           </div>
@@ -492,14 +559,23 @@ export const GroupingView = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredGroups.length === 0 ? (
+              {displayedGroups.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontStyle: 'italic' }}>
-                    {filterMode === 'DEBT_ONLY' ? 'Hiện không có lớp nào ghi nợ từ tuần trước.' : 'Không tìm thấy lớp nào.'}
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '36px 20px', background: '#fafbfc' }}>
+                    <div style={{ color: '#1e293b', fontSize: '15px', fontWeight: 'bold', marginBottom: '6px' }}>
+                      {filterMode === 'DEBT_ONLY' 
+                        ? `📋 Bảng rà soát công nợ (${currentWeek}) hiện chưa có lớp nào` 
+                        : 'Không tìm thấy lớp nào'}
+                    </div>
+                    <div style={{ color: '#64748b', fontSize: '13px' }}>
+                      {filterMode === 'DEBT_ONLY' 
+                        ? 'Chỉ có dữ liệu khi bạn chọn lớp, nhập số tiền thiếu / chưa trả ở trên và bấm [➕ Thêm / Lưu Vào Danh Sách].'
+                        : 'Hãy thử tìm kiếm với từ khóa khác.'}
+                    </div>
                   </td>
                 </tr>
               ) : (
-                filteredGroups.map((group, idx) => {
+                displayedGroups.map((group, idx) => {
                   const homeroom = getHomeroomTeacher(group.className);
                   const siso = getStudentCountForClass(group.className);
                   const debt = classDebts?.[group.className];
