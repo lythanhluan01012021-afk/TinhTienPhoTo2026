@@ -30,7 +30,15 @@ function doPost(e) {
     if (data.action === "saveBillingData") {
       var sheet = ss.getSheetByName("NhatKy_Photo");
       if (!sheet) {
-        sheet = ss.insertSheet("NhatKy_Photo");
+        // Nếu bảng tính mới chỉ có 1 sheet mặc định đang trống (Sheet1 hoặc Trang tính 1), đổi tên thành NhatKy_Photo luôn
+        var sheets = ss.getSheets();
+        if (sheets.length === 1 && sheets[0].getLastRow() === 0) {
+          sheet = sheets[0];
+          sheet.setName("NhatKy_Photo");
+        } else {
+          sheet = ss.insertSheet("NhatKy_Photo");
+        }
+
         sheet.appendRow([
           "Mã Giao Dịch",
           "Thời Gian Ghi Nhận",
@@ -96,6 +104,10 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("API Web App Tinh Tien Photo đang hoạt động hoàn hảo!")
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss ? ss.getSheetByName("NhatKy_Photo") : null;
+  var rows = sheet ? sheet.getLastRow() : 0;
+  var name = ss ? ss.getName() : "Không xác định";
+  return ContentService.createTextOutput("API Web App Tinh Tien Photo đang hoạt động hoàn hảo!\n- File: " + name + "\n- Số dòng dữ liệu trong NhatKy_Photo: " + rows)
     .setMimeType(ContentService.MimeType.TEXT);
 }
