@@ -166,6 +166,33 @@ export const AppProvider = ({ children }) => {
   const [printClassFilter, setPrintClassFilter] = useState('all');
   const [syncStatus, setSyncStatus] = useState({ status: 'idle', message: '' });
 
+  // Weekly Billing & Debt Tracking State
+  const [availableWeeks, setAvailableWeeks] = useState(() => {
+    const saved = localStorage.getItem('photo_available_weeks');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5', 'Tuần 6', 'Tuần 7', 'Tuần 8', 'Tuần 9', 'Tuần 10'];
+  });
+
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    return localStorage.getItem('photo_current_week') || 'Tuần 1';
+  });
+
+  // Object storing class payments: { [week]: { [className]: { paidAmount, note, paidDate } } }
+  const [classPayments, setClassPayments] = useState(() => {
+    const saved = localStorage.getItem('photo_class_payments');
+    if (saved) {
+      try {
+        return JSON.parse(saved) || {};
+      } catch (e) {}
+    }
+    return {};
+  });
+
   // Run on mount to ensure departments for Dang, Tuyen and all teachers match exact school structure
   useEffect(() => {
     setTeachers(prev => {
@@ -207,6 +234,18 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('photo_billing_items', JSON.stringify(billingItems));
   }, [billingItems]);
 
+  useEffect(() => {
+    localStorage.setItem('photo_available_weeks', JSON.stringify(availableWeeks));
+  }, [availableWeeks]);
+
+  useEffect(() => {
+    localStorage.setItem('photo_current_week', currentWeek);
+  }, [currentWeek]);
+
+  useEffect(() => {
+    localStorage.setItem('photo_class_payments', JSON.stringify(classPayments));
+  }, [classPayments]);
+
   // Helper: Get student count for a class
   const getStudentCountForClass = (className) => {
     if (!className) return 0;
@@ -223,19 +262,20 @@ export const AppProvider = ({ children }) => {
 
   // Helper: Add a single item to billing grid
   const addBillingItem = (item) => {
-    const studentCount = item.studentCount ?? getStudentCountForClass(item.className);
-    const extraCount = item.extraCount ?? 0;
-    const unitPrice = item.unitPrice ?? settings.defaultUnitPrice;
-    const amount = (Number(studentCount) + Number(extraCount)) * Number(unitPrice);
+    const studentCount = Math.max(0, Number(item.studentCount ?? getStudentCountForClass(item.className)) || 0);
+    const extraCount = Math.max(0, Number(item.extraCount ?? 0) || 0);
+    const unitPrice = Math.max(0, Number(item.unitPrice ?? settings.defaultUnitPrice) || settings.defaultUnitPrice);
+    const amount = (studentCount + extraCount) * unitPrice;
 
     const newItem = {
       id: item.id || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      week: item.week || currentWeek || 'Tuần 1',
       teacherName: item.teacherName || '',
       className: item.className || '',
       subject: item.subject || 'Tài liệu photo',
-      studentCount: Number(studentCount) || 0,
-      extraCount: Number(extraCount) || 0,
-      unitPrice: Number(unitPrice) || settings.defaultUnitPrice,
+      studentCount: studentCount,
+      extraCount: extraCount,
+      unitPrice: unitPrice,
       amount: amount,
       status: item.status || 'CHO_TAI_LIEU',
       isPaid: item.status === 'DA_THANH_TOAN' || item.isPaid || false,
@@ -294,6 +334,178 @@ export const AppProvider = ({ children }) => {
     window.open(url, '_blank');
   };
 
+  // Cập nhật số tiền nộp & ghi chú nợ của 1 lớp trong tuần cụ thể
+  const updateClassPayment = (week, className, paidAmount, note = '') => {
+    if (!week || !className) return;
+    setClassPayments(prev => {
+      const weekData = prev[week] || {};
+      const currentEntry = weekData[className] || {};
+      const updatedWeekData = {
+        ...weekData,
+        [className]: {
+          ...currentEntry,
+          paidAmount: Math.max(0, Number(paidAmount) || 0),
+          note: note !== undefined ? note : (currentEntry.note || ''),
+          paidDate: new Date().toISOString().split('T')[0]
+        }
+      };
+      return {
+        ...prev,
+        [week]: updatedWeekData
+      };
+    });
+  };
+
+  // Thêm tuần mới vào danh sách tuần
+  const addWeek = (newWeekName) => {
+    if (!newWeekName || !newWeekName.trim()) return;
+    const clean = newWeekName.trim();
+    if (!availableWeeks.includes(clean)) {
+      setAvailableWeeks(prev => [...prev, clean]);
+    }
+    setCurrentWeek(clean);
+  };
+
+  // Tính toán công nợ tích lũy qua các tuần của một lớp học (Chuyển nợ sang tuần sau)
+  const getClassDebtSummary = (className, targetWeek = currentWeek) => {
+    if (!className) {
+      return { 
+        className: '', 
+        week: targetWeek, 
+        billedThisWeek: 0, 
+        previousDebt: 0, 
+        totalDue: 0, 
+        paidAmount: 0, 
+        remainingDebt: 0, 
+        status: 'PAID',
+        note: '',
+        paidDate: '',
+        items: []
+      };
+    }
+
+    const targetIdx = availableWeeks.indexOf(targetWeek);
+    const relevantWeeks = targetIdx >= 0 ? availableWeeks.slice(0, targetIdx + 1) : [targetWeek];
+
+    let runningDebt = 0; // Nợ lũy kế chuyển từ tuần này sang tuần sau
+
+    for (let i = 0; i < relevantWeeks.length; i++) {
+      const wk = relevantWeeks[i];
+
+      // Tiền photo phát sinh trong tuần này của lớp
+      const itemsInWeek = billingItems.filter(item => 
+        (item.className || '').trim().toLowerCase() === className.trim().toLowerCase() && 
+        (item.week || availableWeeks[0] || 'Tuần 1') === wk
+      );
+      const billedInWeek = itemsInWeek.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+      // Tổng phải thu của tuần = Tiền photo tuần này + Nợ cũ mang sang
+      const totalDueInWeek = billedInWeek + runningDebt;
+
+      // Số tiền lớp đã đóng trong tuần này
+      const paymentInfo = classPayments[wk]?.[className] || {};
+      const paidInWeek = Number(paymentInfo.paidAmount) || 0;
+
+      // Còn nợ tuần này = Tổng phải thu - Đã đóng
+      const remainingInWeek = totalDueInWeek - paidInWeek;
+
+      // Nếu đang xét đúng tuần mục tiêu -> trả về kết quả
+      if (wk === targetWeek) {
+        let status = 'UNPAID';
+        if (totalDueInWeek === 0) {
+          status = 'PAID';
+        } else if (remainingInWeek <= 0) {
+          status = remainingInWeek < 0 ? 'OVERPAID' : 'PAID';
+        } else if (paidInWeek > 0) {
+          status = 'PARTIAL';
+        } else {
+          status = 'UNPAID';
+        }
+
+        return {
+          className,
+          week: targetWeek,
+          billedThisWeek: billedInWeek,
+          previousDebt: runningDebt, // Nợ cũ các tuần trước chuyển sang
+          totalDue: totalDueInWeek,  // Tổng phải nộp tuần này
+          paidAmount: paidInWeek,    // Tiền lớp đã đóng
+          remainingDebt: remainingInWeek, // Còn thiếu chuyển tuần sau
+          status, // 'PAID' (Đã nộp đủ) | 'PARTIAL' (Còn thiếu) | 'UNPAID' (Chưa nộp) | 'OVERPAID' (Nộp dư)
+          note: paymentInfo.note || '',
+          paidDate: paymentInfo.paidDate || '',
+          items: itemsInWeek
+        };
+      }
+
+      // Chưa tới tuần mục tiêu -> gán nợ chuyển sang cho tuần tiếp theo
+      runningDebt = remainingInWeek;
+    }
+
+    return {
+      className,
+      week: targetWeek,
+      billedThisWeek: 0,
+      previousDebt: runningDebt,
+      totalDue: runningDebt,
+      paidAmount: 0,
+      remainingDebt: runningDebt,
+      status: runningDebt > 0 ? 'UNPAID' : 'PAID',
+      note: '',
+      paidDate: '',
+      items: []
+    };
+  };
+
+  // Thống kê công nợ toàn trường của một tuần
+  const getWeekStatistics = (targetWeek = currentWeek) => {
+    // Thu thập danh sách tất cả các lớp
+    const allClassNames = Array.from(new Set([
+      ...classes.map(c => c.className),
+      ...billingItems.map(i => i.className).filter(Boolean)
+    ])).filter(Boolean).sort();
+
+    let totalBilled = 0;
+    let totalPreviousDebt = 0;
+    let totalDue = 0;
+    let totalPaid = 0;
+    let totalRemaining = 0;
+    let paidCount = 0;
+    let partialCount = 0;
+    let unpaidCount = 0;
+
+    const classSummaries = allClassNames.map(clsName => {
+      const summary = getClassDebtSummary(clsName, targetWeek);
+      totalBilled += summary.billedThisWeek;
+      totalPreviousDebt += summary.previousDebt;
+      totalDue += summary.totalDue;
+      totalPaid += summary.paidAmount;
+      totalRemaining += summary.remainingDebt;
+
+      if (summary.status === 'PAID' || summary.status === 'OVERPAID') {
+        paidCount++;
+      } else if (summary.status === 'PARTIAL') {
+        partialCount++;
+      } else if (summary.totalDue > 0) {
+        unpaidCount++;
+      }
+
+      return summary;
+    });
+
+    return {
+      week: targetWeek,
+      totalBilled,
+      totalPreviousDebt,
+      totalDue,
+      totalPaid,
+      totalRemaining,
+      paidCount,
+      partialCount,
+      unpaidCount,
+      classSummaries
+    };
+  };
+
   // Helper: Add all classes taught by a teacher
   const addBatchClassesForTeacher = (teacher, classAssignments) => {
     if (!classAssignments || classAssignments.length === 0) return;
@@ -304,6 +516,7 @@ export const AppProvider = ({ children }) => {
       const unitPrice = settings.defaultUnitPrice;
       return {
         id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        week: currentWeek || 'Tuần 1',
         teacherName: teacher.name,
         className: asg.className,
         subject: asg.subject || 'Đề cương / Kiểm tra',
@@ -355,11 +568,16 @@ export const AppProvider = ({ children }) => {
     setBillingItems(prev => prev.filter(i => i.id !== id));
   };
 
-  // Clear entire billing grid
+  // Clear entire billing grid (với cơ chế bảo vệ doanh thu)
   const clearBillingGrid = () => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ bảng tính hiện tại để tạo phiên mới?')) {
-      setBillingItems([]);
+    if (billingItems.length > 0 && billingItems.some(i => !i.isSynced)) {
+      if (!window.confirm('CẢNH BÁO BẢO VỆ DOANH THU: Bảng tính đang có dòng photo chưa được "Lưu CSDL"! Nếu xóa bảng lúc này, bạn sẽ bị mất thông tin tính tiền. Bạn có chắc chắn muốn xóa không?')) {
+        return;
+      }
+    } else if (!window.confirm('Bạn có chắc chắn muốn làm mới (xóa toàn bộ bảng tính hiện tại) để bắt đầu phiên mới?')) {
+      return;
     }
+    setBillingItems([]);
   };
 
   // Reset entire app data to empty
@@ -407,16 +625,36 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
-    setSyncStatus({ status: 'syncing', message: 'Đang đồng bộ và cập nhật lên Google Sheets trên Drive...' });
+    setSyncStatus({ status: 'syncing', message: 'Đang đồng bộ đơn photo & công nợ tuần lên Google Sheets...' });
     
     try {
+      // Chuẩn bị dữ liệu công nợ các lớp trong tuần hiện tại
+      const currentStats = getWeekStatistics(currentWeek);
+      const weeklyDebtSummaries = currentStats.classSummaries.map(s => ({
+        key: `${s.week}_${s.className}`,
+        week: s.week,
+        className: s.className,
+        homeroomTeacher: getHomeroomTeacher(s.className),
+        billedThisWeek: s.billedThisWeek,
+        previousDebt: s.previousDebt,
+        totalDue: s.totalDue,
+        paidAmount: s.paidAmount,
+        remainingDebt: s.remainingDebt,
+        statusLabel: s.status === 'PAID' ? 'Đã nộp đủ' : (s.status === 'PARTIAL' ? 'Còn thiếu' : (s.status === 'OVERPAID' ? 'Nộp dư' : 'Chưa nộp')),
+        note: s.note || '',
+        updatedAt: new Date().toISOString()
+      }));
+
       const payload = {
         action: 'saveBillingData',
         folderId: settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId,
+        currentWeek: currentWeek,
         items: billingItems.map(item => ({
           ...item,
+          week: item.week || currentWeek || 'Tuần 1',
           statusLabel: ORDER_STATUSES[item.status]?.label || (item.isPaid ? 'Đã thanh toán' : 'Chờ gửi tài liệu')
         })),
+        weeklyDebtSummaries: weeklyDebtSummaries,
         timestamp: new Date().toISOString()
       };
 
@@ -433,7 +671,7 @@ export const AppProvider = ({ children }) => {
 
       setSyncStatus({ 
         status: 'success', 
-        message: `Đã lưu & đồng bộ thành công ${billingItems.length} mục vào Google Sheets (tự động cập nhật không trùng lặp)!` 
+        message: `Đã lưu & đồng bộ thành công ${billingItems.length} mục đơn photo và công nợ ${currentWeek} lên Google Sheets!` 
       });
     } catch (err) {
       console.error(err);
@@ -450,6 +688,13 @@ export const AppProvider = ({ children }) => {
 
   // Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về Web App (Đồng bộ chiều về)
   const fetchFromGoogleSheets = async () => {
+    // Bảo vệ an toàn chống ghi đè dữ liệu chưa lưu
+    if (billingItems.length > 0 && billingItems.some(i => !i.isSynced)) {
+      if (!window.confirm('CẢNH BÁO BẢO VỆ DOANH THU: Bảng tính đang có các dòng chưa bấm "Lưu CSDL". Nếu tải từ Drive về lúc này, dữ liệu chưa lưu sẽ bị xóa mất. Bạn có chắc chắn muốn ghi đè không?')) {
+        return;
+      }
+    }
+
     const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
     if (!targetUrl || !targetUrl.startsWith('http')) {
       alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
@@ -541,6 +786,17 @@ export const AppProvider = ({ children }) => {
         printClassFilter,
         setPrintClassFilter,
         syncStatus,
+
+        currentWeek,
+        setCurrentWeek,
+        availableWeeks,
+        setAvailableWeeks,
+        classPayments,
+        setClassPayments,
+        updateClassPayment,
+        addWeek,
+        getClassDebtSummary,
+        getWeekStatistics,
 
         addBillingItem,
         handleAddBlankRow,

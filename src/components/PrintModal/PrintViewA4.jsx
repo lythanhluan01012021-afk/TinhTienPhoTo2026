@@ -66,7 +66,9 @@ export const PrintViewA4 = () => {
     printClassFilter, 
     setPrintClassFilter,
     getHomeroomTeacher,
-    getStudentCountForClass
+    getStudentCountForClass,
+    currentWeek,
+    getClassDebtSummary
   } = useApp();
 
   const [printTemplate, setPrintTemplate] = useState('class_invoice'); // 'class_invoice' | 'school_summary'
@@ -408,6 +410,47 @@ export const PrintViewA4 = () => {
                       <div style={{ marginTop: '5px', fontSize: '9.5pt', fontStyle: 'italic' }}>
                         Số tiền viết bằng chữ: <b>{words}</b>
                       </div>
+
+                      {/* Weekly Debt & Settlement Breakdown */}
+                      {(() => {
+                        const debt = getClassDebtSummary(group.className, currentWeek);
+                        if (!debt) return null;
+                        return (
+                          <div style={{ marginTop: '6px', padding: '6px 10px', background: '#f8fafc', border: '1px solid #000', fontSize: '9.5pt' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                              <span>1. Tiền photo phát sinh trong {currentWeek}:</span>
+                              <b>{formatVND(debt.billedThisWeek)}</b>
+                            </div>
+                            {debt.previousDebt > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#b45309' }}>
+                                <span>2. Nợ cũ các tuần trước chuyển sang:</span>
+                                <b>+ {formatVND(debt.previousDebt)}</b>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', borderTop: '1px dashed #000', paddingTop: '2px' }}>
+                              <b>3. TỔNG CỘNG LỚP CẦN NỘP:</b>
+                              <b style={{ fontSize: '10.5pt' }}>{formatVND(debt.totalDue)}</b>
+                            </div>
+                            {debt.paidAmount > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#047857' }}>
+                                <span>4. Số tiền lớp đã đóng ({currentWeek}):</span>
+                                <b>- {formatVND(debt.paidAmount)}</b>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: debt.remainingDebt > 0 ? '#b91c1c' : '#047857', fontWeight: 'bold', borderTop: '1px solid #000', paddingTop: '2px' }}>
+                              <span>5. {debt.remainingDebt > 0 ? 'SỐ TIỀN CÒN THIẾU (NỢ CHUYỂN TUẦN SAU):' : 'TÌNH TRẠNG:'}</span>
+                              <span style={{ fontSize: '10.5pt' }}>
+                                {debt.remainingDebt > 0 ? formatVND(debt.remainingDebt) : 'ĐÃ NỘP ĐỦ'}
+                              </span>
+                            </div>
+                            {debt.note && (
+                              <div style={{ fontSize: '9pt', color: '#334155', fontStyle: 'italic', marginTop: '2px' }}>
+                                Ghi chú: {debt.note}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Signatures Block (Mặc định ẩn để tiết kiệm giấy in tối đa) */}
                       {showSignatures && (

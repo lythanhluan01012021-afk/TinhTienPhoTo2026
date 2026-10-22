@@ -12,7 +12,10 @@ export const ExcelGrid = () => {
     removeBillingItem, 
     classes,
     teachers,
-    settings
+    settings,
+    currentWeek,
+    setCurrentWeek,
+    availableWeeks
   } = useApp();
 
   const displayedItems = billingItems;
@@ -83,8 +86,44 @@ export const ExcelGrid = () => {
           </div>
         </div>
 
-        <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          * Các nút chức năng chính đã được ghim cố định ở thanh tiêu đề trên cùng
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div 
+            className="neu-card-sm" 
+            style={{ 
+              padding: '5px 12px', 
+              fontSize: '13px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              border: '1.5px solid #b8cce4',
+              background: '#f4f8fc',
+              borderRadius: '8px'
+            }}
+            title="Chọn tuần photo để gán cho các đơn mới nhập"
+          >
+            <span style={{ fontWeight: '600', color: 'var(--text-sub)' }}>📅 Tuần Photo:</span>
+            <select
+              value={currentWeek}
+              onChange={(e) => setCurrentWeek(e.target.value)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontWeight: 'bold',
+                color: 'var(--color-primary-dark)',
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                outline: 'none'
+              }}
+            >
+              {availableWeeks.map(w => (
+                <option key={w} value={w}>{w}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            * Bấm "Tổng Theo Lớp" để quản lý thu tiền & nợ theo tuần
+          </div>
         </div>
       </div>
 

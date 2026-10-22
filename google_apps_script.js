@@ -53,6 +53,8 @@ function doPost(e) {
         var amount = Number(item.amount) || (totalCopies * unitPrice);
         var statusLabel = item.statusLabel || item.status || (item.isPaid ? "Đã thanh toán" : "Chờ gửi tài liệu");
 
+        var weekLabel = item.week || data.currentWeek || "Tuần 1";
+
         var rowValues = [
           cleanId,
           timestamp,
@@ -65,13 +67,14 @@ function doPost(e) {
           unitPrice,
           amount,
           statusLabel,
-          item.note || ""
+          item.note || "",
+          weekLabel
         ];
 
         // Nếu đã có ID trên Sheet -> CẬP NHẬT VÀO ĐÚNG DÒNG ĐÓ
         if (idToRowMap[cleanId]) {
           var targetRow = idToRowMap[cleanId];
-          sheet.getRange(targetRow, 1, 1, 12).setValues([rowValues]);
+          sheet.getRange(targetRow, 1, 1, 13).setValues([rowValues]);
           updatedCount++;
         } else {
           // Chưa có -> THÊM MỚI
@@ -81,9 +84,52 @@ function doPost(e) {
         }
       });
 
+      // CẬP NHẬT HOẶC TẠO TAB CÔNG NỢ THEO TUẦN (CongNo_TheoTuan)
+      if (data.weeklyDebtSummaries && data.weeklyDebtSummaries.length > 0) {
+        var debtSheet = getOrCreateDebtSheet(ss);
+        var lastDebtRow = debtSheet.getLastRow();
+        var debtKeyToRowMap = {};
+
+        if (lastDebtRow > 1) {
+          var existingKeys = debtSheet.getRange(2, 1, lastDebtRow - 1, 1).getValues();
+          for (var k = 0; k < existingKeys.length; k++) {
+            var dKey = existingKeys[k][0];
+            if (dKey) {
+              debtKeyToRowMap[dKey.toString().trim()] = (k + 2);
+            }
+          }
+        }
+
+        data.weeklyDebtSummaries.forEach(function(d) {
+          if (!d.key) return;
+          var cleanKey = d.key.toString().trim();
+          var debtRowValues = [
+            cleanKey,
+            d.week || "",
+            d.className || "",
+            d.homeroomTeacher || "",
+            Number(d.billedThisWeek) || 0,
+            Number(d.previousDebt) || 0,
+            Number(d.totalDue) || 0,
+            Number(d.paidAmount) || 0,
+            Number(d.remainingDebt) || 0,
+            d.statusLabel || "",
+            d.note || "",
+            timestamp
+          ];
+
+          if (debtKeyToRowMap[cleanKey]) {
+            debtSheet.getRange(debtKeyToRowMap[cleanKey], 1, 1, 12).setValues([debtRowValues]);
+          } else {
+            debtSheet.appendRow(debtRowValues);
+            debtKeyToRowMap[cleanKey] = debtSheet.getLastRow();
+          }
+        });
+      }
+
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
-        message: "Đồng bộ thành công! Đã cập nhật " + updatedCount + " mục và thêm mới " + insertedCount + " mục.",
+        message: "Đồng bộ thành công! Đã cập nhật " + updatedCount + " mục và thêm mới " + insertedCount + " mục vào CSDL.",
         updatedCount: updatedCount,
         insertedCount: insertedCount,
         totalItems: items.length,
@@ -227,12 +273,43 @@ function getOrCreatePhotoSheet(ss) {
       "Đơn Giá (VNĐ)",
       "Thành Tiền (VNĐ)",
       "Trạng Thái Đơn",
-      "Ghi Chú"
+      "Ghi Chú",
+      "Tuần Photo"
     ]);
 
-    sheet.getRange(1, 1, 1, 12)
+    sheet.getRange(1, 1, 1, 13)
          .setFontWeight("bold")
          .setBackground("#1b5ebe")
+         .setFontColor("#ffffff")
+         .setHorizontalAlignment("center");
+    sheet.setFrozenRows(1);
+    sheet.setRowHeight(1, 35);
+  }
+  return sheet;
+}
+
+// Hàm hỗ trợ lấy hoặc tạo sheet CongNo_TheoTuan
+function getOrCreateDebtSheet(ss) {
+  var sheet = ss.getSheetByName("CongNo_TheoTuan");
+  if (!sheet) {
+    sheet = ss.insertSheet("CongNo_TheoTuan");
+    sheet.appendRow([
+      "Mã Định Danh (Tuần_Lớp)",
+      "Tuần",
+      "Lớp",
+      "GVCN",
+      "Phát Sinh Tuần Này (VNĐ)",
+      "Nợ Cũ Mang Sang (VNĐ)",
+      "TỔNG CẦN NỘP (VNĐ)",
+      "ĐÃ NỘP (VNĐ)",
+      "CÒN THIẾU CHUYỂN TUẦN SAU (VNĐ)",
+      "Trạng Thái",
+      "Ghi Chú Nợ",
+      "Ngày Cập Nhật"
+    ]);
+    sheet.getRange(1, 1, 1, 12)
+         .setFontWeight("bold")
+         .setBackground("#0f766e")
          .setFontColor("#ffffff")
          .setHorizontalAlignment("center");
     sheet.setFrozenRows(1);
