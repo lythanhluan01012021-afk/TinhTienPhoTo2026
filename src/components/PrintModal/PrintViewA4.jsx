@@ -442,10 +442,10 @@ export const PrintViewA4 = () => {
                                 })
                               )}
 
-                              {/* Dòng cộng tiền photo đợt này */}
+                              {/* Dòng cộng tiền photo tuần này */}
                               <tr style={{ fontWeight: 'bold', backgroundColor: '#f9f9f9' }}>
                                 <td colSpan="5" style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right', textTransform: 'uppercase' }}>
-                                  CỘNG TIỀN PHOTO ĐỢT NÀY:
+                                  TIỀN PHOTO TUẦN NÀY:
                                 </td>
                                 <td style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right' }}>
                                   {group.totalCopies.toLocaleString('vi-VN')}
@@ -461,7 +461,7 @@ export const PrintViewA4 = () => {
                                 <>
                                   <tr style={{ fontWeight: '600', backgroundColor: '#fff7ed', color: '#c2410c' }}>
                                     <td colSpan="7" style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right' }}>
-                                      (+) TIỀN THIẾU / NỢ CŨ CHƯA NỘP {debtNote ? `(${debtNote})` : ''}:
+                                      (+) TIỀN NỢ TUẦN TRƯỚC (CHƯA TRẢ / THIẾU) {debtNote ? `(${debtNote})` : ''}:
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '5px 6px', textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
                                       + {formatVND(debtAmount)}
@@ -469,7 +469,7 @@ export const PrintViewA4 = () => {
                                   </tr>
                                   <tr style={{ fontWeight: 'bold', backgroundColor: '#eff6ff', color: '#1e3a8a' }}>
                                     <td colSpan="7" style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'right', textTransform: 'uppercase', fontSize: '11pt' }}>
-                                      TỔNG CỘNG LỚP {group.className} CẦN THANH TOÁN:
+                                      TỔNG CỘNG LỚP {group.className} CẦN THANH TOÁN (BILL IN):
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'right', fontSize: '12pt', color: '#b91c1c' }}>
                                       {formatVND(totalClassDue)}
@@ -696,10 +696,10 @@ export const PrintViewA4 = () => {
                         })
                       )}
 
-                      {/* Subtotal tiền photo đợt này */}
+                      {/* Subtotal tiền photo tuần này */}
                       <tr style={{ fontWeight: 'bold' }}>
                         <td colSpan="5" style={{ textAlign: 'right', textTransform: 'uppercase' }}>
-                          CỘNG TỔNG TIỀN PHOTO LỚP {group.className}:
+                          TIỀN PHOTO TUẦN NÀY:
                         </td>
                         <td style={{ textAlign: 'right' }}>{group.totalCopies.toLocaleString('vi-VN')}</td>
                         <td></td>
@@ -711,7 +711,7 @@ export const PrintViewA4 = () => {
                         <>
                           <tr style={{ fontWeight: '600' }}>
                             <td colSpan="7" style={{ textAlign: 'right' }}>
-                              (+) TIỀN THIẾU / NỢ CŨ CHƯA NỘP {debtNote ? `(${debtNote})` : ''}:
+                              (+) TIỀN NỢ TUẦN TRƯỚC (CHƯA TRẢ / THIẾU) {debtNote ? `(${debtNote})` : ''}:
                             </td>
                             <td style={{ textAlign: 'right', fontSize: '11pt', fontWeight: 'bold' }}>
                               + {formatVND(debtAmount)}
@@ -719,7 +719,7 @@ export const PrintViewA4 = () => {
                           </tr>
                           <tr style={{ fontWeight: 'bold' }}>
                             <td colSpan="7" style={{ textAlign: 'right', textTransform: 'uppercase', fontSize: '11pt' }}>
-                              TỔNG CỘNG LỚP {group.className} CẦN THANH TOÁN:
+                              TỔNG CỘNG LỚP {group.className} CẦN THANH TOÁN (BILL IN):
                             </td>
                             <td style={{ textAlign: 'right', fontSize: '12pt' }}>
                               {formatVND(totalClassDue)}
