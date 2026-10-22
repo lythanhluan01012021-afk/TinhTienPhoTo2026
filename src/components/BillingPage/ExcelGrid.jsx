@@ -7,12 +7,14 @@ import {
   Layers, 
   Printer, 
   CloudUpload, 
+  CloudDownload,
   RotateCcw,
   CheckCircle,
   Clock,
   Search,
   DollarSign,
-  Download
+  Download,
+  Filter
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { fuzzyVietnameseMatch } from '../../utils/vietnameseUtils';
@@ -28,12 +30,40 @@ export const ExcelGrid = () => {
     setIsGroupedView,
     setIsPrintModalOpen,
     syncToGoogleSheets,
+    fetchFromGoogleSheets,
+    ORDER_STATUSES,
     classes,
     teachers,
     settings
   } = useApp();
 
-  const displayedItems = billingItems;
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Status counts for tabs
+  const statusCounts = useMemo(() => {
+    const counts = { ALL: billingItems.length, CHO_TAI_LIEU: 0, DANG_IN: 0, HOAN_THANH: 0, DA_THANH_TOAN: 0 };
+    billingItems.forEach(i => {
+      const st = i.status || 'CHO_TAI_LIEU';
+      if (counts[st] !== undefined) counts[st]++;
+    });
+    return counts;
+  }, [billingItems]);
+
+  // Filtered items
+  const displayedItems = useMemo(() => {
+    return billingItems.filter(item => {
+      if (statusFilter !== 'ALL' && (item.status || 'CHO_TAI_LIEU') !== statusFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTeacher = fuzzyVietnameseMatch(item.teacherName || '', q);
+        const matchClass = (item.className || '').toLowerCase().includes(q);
+        const matchSubject = fuzzyVietnameseMatch(item.subject || '', q);
+        if (!matchTeacher && !matchClass && !matchSubject) return false;
+      }
+      return true;
+    });
+  }, [billingItems, statusFilter, searchQuery]);
 
   // Grand Total Calculations
   const totals = useMemo(() => {
@@ -184,11 +214,22 @@ export const ExcelGrid = () => {
             <span>In Ấn A4</span>
           </button>
 
-          {/* Sync to Google Sheets */}
+          {/* Fetch from Google Drive */}
+          <button 
+            onClick={fetchFromGoogleSheets}
+            className="neu-btn"
+            title="Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về máy"
+            style={{ fontSize: '13.5px', padding: '8px 14px', color: '#1b5ebe', fontWeight: '600' }}
+          >
+            <CloudDownload size={16} />
+            <span>Tải Từ Drive</span>
+          </button>
+
+          {/* Sync to Google Sheets (Upsert - Chống trùng lặp) */}
           <button 
             onClick={syncToGoogleSheets}
             className="neu-btn neu-btn-success"
-            title="Lưu bảng tính này vào Google Sheets trên Drive"
+            title="Lưu & Cập nhật lên Google Sheets (Tự động chống trùng lặp dữ liệu)"
             style={{ fontSize: '13.5px', padding: '8px 14px' }}
           >
             <CloudUpload size={16} />
@@ -199,11 +240,116 @@ export const ExcelGrid = () => {
           <button 
             onClick={clearBillingGrid}
             className="neu-btn"
-            title="Xóa toàn bộ bảng tính hiện tại"
+            title="Xóa toàn bộ bảng tính hiện tại để bắt đầu phiên mới"
             style={{ padding: '8px 12px', color: 'var(--color-danger)' }}
           >
             <RotateCcw size={16} />
           </button>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Quick Search Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <button 
+            onClick={() => setStatusFilter('ALL')}
+            className={`badge-filter-btn ${statusFilter === 'ALL' ? 'active' : ''}`}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '20px',
+              border: statusFilter === 'ALL' ? '1.5px solid #1b5ebe' : '1px solid #d1d5db',
+              backgroundColor: statusFilter === 'ALL' ? '#1b5ebe' : '#ffffff',
+              color: statusFilter === 'ALL' ? '#ffffff' : '#4b5563',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            Tất cả ({statusCounts.ALL})
+          </button>
+
+          <button 
+            onClick={() => setStatusFilter('CHO_TAI_LIEU')}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '20px',
+              border: statusFilter === 'CHO_TAI_LIEU' ? '1.5px solid #b45309' : '1px solid #fcd34d',
+              backgroundColor: statusFilter === 'CHO_TAI_LIEU' ? '#fef3c7' : '#fffbeb',
+              color: '#b45309',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            🟡 Chờ gửi tài liệu ({statusCounts.CHO_TAI_LIEU})
+          </button>
+
+          <button 
+            onClick={() => setStatusFilter('DANG_IN')}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '20px',
+              border: statusFilter === 'DANG_IN' ? '1.5px solid #1d4ed8' : '1px solid #bfdbfe',
+              backgroundColor: statusFilter === 'DANG_IN' ? '#dbeafe' : '#eff6ff',
+              color: '#1d4ed8',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            🔵 Đang photo ({statusCounts.DANG_IN})
+          </button>
+
+          <button 
+            onClick={() => setStatusFilter('HOAN_THANH')}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '20px',
+              border: statusFilter === 'HOAN_THANH' ? '1.5px solid #047857' : '1px solid #a7f3d0',
+              backgroundColor: statusFilter === 'HOAN_THANH' ? '#d1fae5' : '#ecfdf5',
+              color: '#047857',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            🟢 Đã xong ({statusCounts.HOAN_THANH})
+          </button>
+
+          <button 
+            onClick={() => setStatusFilter('DA_THANH_TOAN')}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '20px',
+              border: statusFilter === 'DA_THANH_TOAN' ? '1.5px solid #6d28d9' : '1px solid #ddd6fe',
+              backgroundColor: statusFilter === 'DA_THANH_TOAN' ? '#ede9fe' : '#f5f3ff',
+              color: '#6d28d9',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            🟣 Đã thanh toán ({statusCounts.DA_THANH_TOAN})
+          </button>
+        </div>
+
+        {/* Quick Search on table */}
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input 
+            type="text"
+            placeholder="Tìm theo GV, lớp, môn..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '6px 10px 6px 30px',
+              borderRadius: '8px',
+              border: '1px solid #c8d6e6',
+              fontSize: '12.5px',
+              outline: 'none'
+            }}
+          />
+          <Search size={14} color="#9ca3af" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
         </div>
       </div>
 
@@ -212,29 +358,32 @@ export const ExcelGrid = () => {
         {displayedItems.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
             <FileSpreadsheet size={48} style={{ opacity: 0.4, marginBottom: '12px' }} />
-            <p style={{ fontSize: '16px', fontWeight: 'bold' }}>Bảng tính hiện đang trống</p>
+            <p style={{ fontSize: '16px', fontWeight: 'bold' }}>Không tìm thấy dòng dữ liệu nào phù hợp bộ lọc</p>
             <p style={{ fontSize: '13.5px' }}>
-              Hãy chọn Giáo viên ở cột bên trái để nạp các lớp hoặc bấm "Thêm Dòng" để nhập thủ công.
+              Hãy chọn Giáo viên ở cột bên trái, bấm "Tải Từ Drive" hoặc bấm "Thêm Dòng" để nhập thủ công.
             </p>
           </div>
         ) : (
           <table className="excel-table">
             <thead>
               <tr>
-                <th style={{ width: '45px' }}>STT</th>
-                <th style={{ width: '160px' }}>Tên Giáo Viên</th>
-                <th style={{ width: '90px' }}>Lớp</th>
+                <th style={{ width: '40px' }}>STT</th>
+                <th style={{ width: '150px' }}>Tên Giáo Viên</th>
+                <th style={{ width: '85px' }}>Lớp</th>
                 <th>Môn Học / Nội Dung Tài Liệu</th>
-                <th style={{ width: '85px' }}>Sĩ Số</th>
-                <th style={{ width: '95px' }}>Số Lượng Lẻ</th>
-                <th style={{ width: '95px' }}>Đơn Giá (đ)</th>
-                <th style={{ width: '130px' }}>Thành Tiền (đ)</th>
-                <th style={{ width: '50px' }}>Xóa</th>
+                <th style={{ width: '80px' }}>Sĩ Số</th>
+                <th style={{ width: '85px' }}>Số Lượng Lẻ</th>
+                <th style={{ width: '90px' }}>Đơn Giá (đ)</th>
+                <th style={{ width: '120px' }}>Thành Tiền (đ)</th>
+                <th style={{ width: '165px' }}>Trạng Thái Đơn</th>
+                <th style={{ width: '45px' }}>Xóa</th>
               </tr>
             </thead>
             <tbody>
               {displayedItems.map((item, index) => {
                 const totalCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+                const currentStatus = item.status || 'CHO_TAI_LIEU';
+                const statusMeta = ORDER_STATUSES[currentStatus] || ORDER_STATUSES.CHO_TAI_LIEU;
 
                 return (
                   <tr key={item.id}>
@@ -327,6 +476,31 @@ export const ExcelGrid = () => {
                     {/* Thành Tiền (Tự Động) */}
                     <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-primary)', fontSize: '15px' }}>
                       {formatVND(item.amount)}
+                    </td>
+
+                    {/* Trạng Thái Đơn */}
+                    <td style={{ textAlign: 'center' }}>
+                      <select 
+                        value={currentStatus}
+                        onChange={(e) => updateBillingItem(item.id, 'status', e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          border: `1.5px solid ${statusMeta.border}`,
+                          backgroundColor: statusMeta.bg,
+                          color: statusMeta.color,
+                          cursor: 'pointer',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="CHO_TAI_LIEU">🟡 Chờ gửi tài liệu</option>
+                        <option value="DANG_IN">🔵 Đang photo</option>
+                        <option value="HOAN_THANH">🟢 Đã photo xong</option>
+                        <option value="DA_THANH_TOAN">🟣 Đã thanh toán</option>
+                      </select>
                     </td>
 
                     {/* Xóa dòng */}

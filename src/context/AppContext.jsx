@@ -8,6 +8,13 @@ import {
   DEFAULT_CASHFLOW
 } from '../data/defaultData';
 
+export const ORDER_STATUSES = {
+  CHO_TAI_LIEU: { key: 'CHO_TAI_LIEU', label: 'Chờ gửi tài liệu', color: '#b45309', bg: '#fef3c7', border: '#fcd34d' },
+  DANG_IN: { key: 'DANG_IN', label: 'Đang photo', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+  HOAN_THANH: { key: 'HOAN_THANH', label: 'Đã photo xong', color: '#047857', bg: '#d1fae5', border: '#6ee7b7' },
+  DA_THANH_TOAN: { key: 'DA_THANH_TOAN', label: 'Đã thanh toán', color: '#6d28d9', bg: '#ede9fe', border: '#c4b5fd' },
+};
+
 const AppContext = createContext();
 
 // Helper to migrate legacy department names to new separated structure
@@ -221,7 +228,7 @@ export const AppProvider = ({ children }) => {
     const amount = (Number(studentCount) + Number(extraCount)) * Number(unitPrice);
 
     const newItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: item.id || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       teacherName: item.teacherName || '',
       className: item.className || '',
       subject: item.subject || 'Tài liệu photo',
@@ -229,8 +236,10 @@ export const AppProvider = ({ children }) => {
       extraCount: Number(extraCount) || 0,
       unitPrice: Number(unitPrice) || settings.defaultUnitPrice,
       amount: amount,
-      isPaid: false,
-      note: item.note || ''
+      status: item.status || 'CHO_TAI_LIEU',
+      isPaid: item.status === 'DA_THANH_TOAN' || item.isPaid || false,
+      note: item.note || '',
+      isSynced: false
     };
 
     setBillingItems(prev => [...prev, newItem]);
@@ -253,8 +262,10 @@ export const AppProvider = ({ children }) => {
         extraCount: extraCount,
         unitPrice: unitPrice,
         amount: (studentCount + extraCount) * unitPrice,
+        status: 'CHO_TAI_LIEU', // Mặc định là Chờ gửi tài liệu
         isPaid: false,
-        note: 'In theo phân công'
+        note: 'In theo phân công',
+        isSynced: false
       };
     });
 
@@ -267,11 +278,16 @@ export const AppProvider = ({ children }) => {
       prev.map(item => {
         if (item.id !== id) return item;
 
-        const updated = { ...item, [field]: value };
+        const updated = { ...item, [field]: value, isSynced: false };
         
         // If className changes, auto update studentCount if default
         if (field === 'className') {
           updated.studentCount = getStudentCountForClass(value);
+        }
+
+        // If status changes to DA_THANH_TOAN -> set isPaid true, else false
+        if (field === 'status') {
+          updated.isPaid = value === 'DA_THANH_TOAN';
         }
 
         // Auto recalculate amount: (Sĩ số + Số lượng lẻ) * Đơn giá
@@ -329,7 +345,7 @@ export const AppProvider = ({ children }) => {
     setCashflow(prev => prev.filter(r => r.id !== id));
   };
 
-  // Sync to Google Sheets Web App
+  // Sync to Google Sheets Web App (Hỗ trợ UPSERT - cập nhật thông minh không trùng lặp)
   const syncToGoogleSheets = async () => {
     if (billingItems.length === 0) {
       alert('Bảng tính hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.');
@@ -342,13 +358,16 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
-    setSyncStatus({ status: 'syncing', message: 'Đang kết nối và lưu vào Google Drive...' });
+    setSyncStatus({ status: 'syncing', message: 'Đang đồng bộ và cập nhật lên Google Sheets trên Drive...' });
     
     try {
       const payload = {
         action: 'saveBillingData',
         folderId: settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId,
-        items: billingItems,
+        items: billingItems.map(item => ({
+          ...item,
+          statusLabel: ORDER_STATUSES[item.status]?.label || (item.isPaid ? 'Đã thanh toán' : 'Chờ gửi tài liệu')
+        })),
         timestamp: new Date().toISOString()
       };
 
@@ -360,15 +379,64 @@ export const AppProvider = ({ children }) => {
         body: JSON.stringify(payload)
       });
 
+      // Đánh dấu tất cả các dòng hiện tại đã đồng bộ thành công
+      setBillingItems(prev => prev.map(item => ({ ...item, isSynced: true })));
+
       setSyncStatus({ 
         status: 'success', 
-        message: `Đã lưu thành công ${billingItems.length} mục photo vào Google Sheets trên Drive!` 
+        message: `Đã lưu & đồng bộ thành công ${billingItems.length} mục vào Google Sheets (tự động cập nhật không trùng lặp)!` 
       });
     } catch (err) {
       console.error(err);
       setSyncStatus({
         status: 'error',
         message: 'Lỗi kết nối khi gửi lên Google Drive. Vui lòng kiểm tra lại đường truyền mạng.'
+      });
+    }
+
+    setTimeout(() => {
+      setSyncStatus({ status: 'idle', message: '' });
+    }, 4500);
+  };
+
+  // Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về Web App (Đồng bộ chiều về)
+  const fetchFromGoogleSheets = async () => {
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+      return;
+    }
+
+    setSyncStatus({ status: 'syncing', message: 'Đang tải dữ liệu từ Google Sheets trên Drive về...' });
+
+    try {
+      const fetchUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 'action=fetchBillingData';
+      const res = await fetch(fetchUrl);
+      const data = await res.json();
+
+      if (data && data.status === 'success' && Array.isArray(data.items)) {
+        if (data.items.length === 0) {
+          setSyncStatus({ status: 'info', message: 'Google Sheets hiện chưa có dữ liệu đơn photo nào.' });
+        } else {
+          const loadedItems = data.items.map(item => ({
+            ...item,
+            status: item.status || (item.isPaid ? 'DA_THANH_TOAN' : 'CHO_TAI_LIEU'),
+            isSynced: true
+          }));
+          setBillingItems(loadedItems);
+          setSyncStatus({ 
+            status: 'success', 
+            message: `Đã tải thành công ${data.items.length} mục đơn photo từ Google Sheets trên Drive!` 
+          });
+        }
+      } else {
+        setSyncStatus({ status: 'error', message: 'Dữ liệu trả về từ Google Sheets không đúng định dạng.' });
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncStatus({
+        status: 'error',
+        message: 'Không thể kết nối tải dữ liệu từ Google Sheets. Vui lòng kiểm tra lại URL Script.'
       });
     }
 
@@ -430,8 +498,10 @@ export const AppProvider = ({ children }) => {
         addCashflowRecord,
         removeCashflowRecord,
         syncToGoogleSheets,
+        fetchFromGoogleSheets,
         getStudentCountForClass,
-        getHomeroomTeacher
+        getHomeroomTeacher,
+        ORDER_STATUSES
       }}
     >
       {children}
