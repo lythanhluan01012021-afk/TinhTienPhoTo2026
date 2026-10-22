@@ -4,30 +4,15 @@ import {
   Calculator, 
   Settings, 
   Receipt, 
-  Printer, 
-  Cloud, 
-  HardDrive, 
-  Calendar,
-  FileSpreadsheet
+  Printer
 } from 'lucide-react';
 
 export const Navbar = () => {
   const { 
     currentTab, 
     setCurrentTab, 
-    settings, 
-    setIsPrintModalOpen,
-    syncStatus,
-    syncToGoogleSheets
+    settings
   } = useApp();
-
-  const today = new Date();
-  const formattedDate = today.toLocaleDateString('vi-VN', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
 
   return (
     <header className="no-print" style={{ marginBottom: '20px' }}>
@@ -67,55 +52,6 @@ export const Navbar = () => {
               {settings.departmentName} • Niên khóa {settings.schoolYear}
             </p>
           </div>
-        </div>
-
-        {/* Date & Google Drive Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-          <div 
-            className="neu-card-sm"
-            style={{ 
-              padding: '6px 14px', 
-              fontSize: '13.5px', 
-              color: 'var(--text-sub)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Calendar size={15} color="var(--color-primary)" />
-            <span style={{ textTransform: 'capitalize' }}>{formattedDate}</span>
-          </div>
-
-          <a 
-            href={settings.driveFolderUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="neu-card-sm"
-            title="Nhấn để mở thư mục Google Drive lưu CSDL"
-            style={{ 
-              padding: '6px 14px', 
-              fontSize: '13px', 
-              color: 'var(--color-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              textDecoration: 'none',
-              fontWeight: '600'
-            }}
-          >
-            <HardDrive size={15} />
-            <span>Google Drive: Thư mục CSDL</span>
-          </a>
-
-          {/* Quick Print A4 Trigger */}
-          <button 
-            onClick={() => setIsPrintModalOpen(true)}
-            className="neu-btn neu-btn-primary"
-            style={{ padding: '8px 16px', fontSize: '14.5px' }}
-          >
-            <Printer size={16} />
-            <span>In Ấn Chuẩn A4</span>
-          </button>
         </div>
       </div>
 
