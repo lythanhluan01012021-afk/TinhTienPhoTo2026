@@ -109,7 +109,8 @@ export const AppProvider = ({ children }) => {
       try {
         const parsed = JSON.parse(saved);
         const defaultUnitPrice = (!parsed.defaultUnitPrice || parsed.defaultUnitPrice === 300) ? 380 : parsed.defaultUnitPrice;
-        return { ...DEFAULT_SETTINGS, ...parsed, defaultUnitPrice, schoolName: '' };
+        const gasWebAppUrl = (!parsed.gasWebAppUrl || parsed.gasWebAppUrl === '') ? DEFAULT_SETTINGS.gasWebAppUrl : parsed.gasWebAppUrl;
+        return { ...DEFAULT_SETTINGS, ...parsed, defaultUnitPrice, gasWebAppUrl, schoolName: '' };
       } catch (e) {
         console.error(e);
       }
@@ -347,11 +348,11 @@ export const AppProvider = ({ children }) => {
         };
         const res = await fetch(settings.gasWebAppUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
         const result = await res.json();
-        setSyncStatus({ status: 'success', message: 'Đã lưu thành công vào Google Sheet trên Drive!' });
+        setSyncStatus({ status: 'success', message: result.message || 'Đã lưu thành công vào Google Sheet trên Drive!' });
       } else {
         await new Promise(r => setTimeout(r, 1000));
         setSyncStatus({

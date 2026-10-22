@@ -2903,5 +2903,6 @@ export const DEFAULT_SETTINGS = {
   semester: 'Học kỳ I',
   driveFolderId: '19K5b-uR1La1UAUBOVoulYurXi0w97Efw',
   driveFolderUrl: 'https://drive.google.com/drive/folders/19K5b-uR1La1UAUBOVoulYurXi0w97Efw?usp=sharing',
-  gasWebAppUrl: ''
+  gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbxDY3_avCD1wEOKb0eOQd7C8GeF-33JF9PvnSIkpUm44yJG2phdVRZOXCyfX_ONVGQG/exec'
 };
+
