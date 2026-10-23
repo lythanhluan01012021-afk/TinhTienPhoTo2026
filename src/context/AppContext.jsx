@@ -183,11 +183,11 @@ export const AppProvider = ({ children }) => {
     return saved !== null ? saved === 'true' : true; // Mặc định bật Auto ẩn sau khi chọn GV & Lớp
   });
   
-  // Trạng thái lưu trữ trực tiếp vào File Excel Local (e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx)
+  // Trạng thái lưu trữ trực tiếp vào File Excel Local (d:\APP-PHOTO26\CSDL_PHOTO_LOCAL.xlsx)
   const [localExcelStatus, setLocalExcelStatus] = useState({
     status: 'idle',
     lastSaved: null,
-    filePath: 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+    filePath: 'd:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx',
     message: ''
   });
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
@@ -530,7 +530,7 @@ export const AppProvider = ({ children }) => {
   };
 
   // Helper: Xuất toàn bộ CSDL 4 Sheet ra file Excel (.xlsx) chuẩn tải về máy
-  const handleExportExcel = () => {
+  const handleExportExcel = (customFileName = null) => {
     const wb = XLSX.utils.book_new();
 
     // 1. Sheet: BangTinhTien (Chi tiết đơn photo)
@@ -543,9 +543,9 @@ export const AppProvider = ({ children }) => {
         'Tuần': item.week || currentWeek,
         'Tên Giáo Viên': item.teacherName || '',
         'Lớp': item.className || '',
-        'Môn Học / Nội Dung': item.subject || '',
+        'Tài liệu': item.subject || '',
         'Sĩ Số': Number(item.studentCount) || 0,
-        'Số Lượng Lẻ': Number(item.extraCount) || 0,
+        'SL Lẻ': Number(item.extraCount) || 0,
         'Tổng Bản In': copies,
         'Đơn Giá (đ)': Number(item.unitPrice) || 380,
         'Thành Tiền (đ)': amount,
@@ -595,7 +595,10 @@ export const AppProvider = ({ children }) => {
     const wsSummary = XLSX.utils.json_to_sheet(summaryData.length > 0 ? summaryData : [{ 'Thông báo': 'Chưa có dữ liệu tổng hợp' }]);
     XLSX.utils.book_append_sheet(wb, wsSummary, 'TongHopDoanhThu');
 
-    XLSX.writeFile(wb, `CSDL_PHOTO_${currentWeek}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const targetFileName = (typeof customFileName === 'string' && customFileName)
+      ? customFileName
+      : `CSDL_PHOTO_${currentWeek}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, targetFileName);
   };
 
   // Helper: Mở nhanh file Google Sheet CSDL trên Google Drive
@@ -924,8 +927,32 @@ export const AppProvider = ({ children }) => {
   // HỆ THỐNG LƯU TRỮ SONG SONG: FILE EXCEL LOCAL VÀ GOOGLE SHEETS CLOUD
   // =========================================================================
 
-  // 1. Lưu trực tiếp toàn bộ CSDL vào file Excel vật lý: e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx
-  const saveToLocalExcelFile = async (showNotification = false) => {
+  // Helper gọi API Local Excel (hỗ trợ cả khi mở localhost:3000 lẫn khi mở link Vercel kết nối về localhost:3000)
+  const fetchLocalExcelEndpoint = async (endpointPath, options = {}) => {
+    try {
+      const res = await fetch(endpointPath, options);
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res;
+      }
+    } catch (e) {}
+
+    // Nếu đang mở trên Vercel Cloud, thử kết nối về server local (http://localhost:3000) trên máy tính
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      try {
+        const localRes = await fetch(`http://localhost:3000${endpointPath}`, options);
+        const localContentType = localRes.headers.get('content-type');
+        if (localRes.ok && localContentType && localContentType.includes('application/json')) {
+          return localRes;
+        }
+      } catch (e) {}
+    }
+
+    return null;
+  };
+
+  // 1. Lưu trực tiếp toàn bộ CSDL vào file Excel vật lý: d:\APP-PHOTO26\CSDL_PHOTO_LOCAL.xlsx
+  const saveToLocalExcelFile = async (showNotification = false, fallbackDownloadOnCloud = false) => {
     try {
       setLocalExcelStatus(prev => ({ ...prev, status: 'saving', message: 'Đang ghi vào file Excel máy tính...' }));
 
@@ -938,20 +965,26 @@ export const AppProvider = ({ children }) => {
         timestamp: new Date().toISOString()
       };
 
-      const res = await fetch('/api/local-excel', {
+      const res = await fetchLocalExcelEndpoint('/api/local-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) {
-        // Môi trường cloud (Vercel) không có endpoint file local
-        setLocalExcelStatus(prev => ({ ...prev, status: 'idle' }));
-        return false;
-      }
-
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
+      if (!res) {
+        // Nếu đang dùng bản Cloud (Vercel) mà không bật server localhost:3000:
+        // Khi người dùng chủ động bấm nút "Lưu CSDL", tự động tải file CSDL_PHOTO_LOCAL.xlsx về máy!
+        if (fallbackDownloadOnCloud) {
+          handleExportExcel('CSDL_PHOTO_LOCAL.xlsx');
+          const timeStr = new Date().toLocaleTimeString('vi-VN');
+          setLocalExcelStatus({
+            status: 'saved',
+            lastSaved: timeStr,
+            filePath: 'CSDL_PHOTO_LOCAL.xlsx (Tải về máy)',
+            message: `Đã tải CSDL_PHOTO_LOCAL.xlsx (${timeStr})`
+          });
+          return true;
+        }
         setLocalExcelStatus(prev => ({ ...prev, status: 'idle' }));
         return false;
       }
@@ -964,7 +997,7 @@ export const AppProvider = ({ children }) => {
           setLocalExcelStatus({
             status: 'warning',
             lastSaved: timeStr,
-            filePath: data.filePath || 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL_DONG_BO.xlsx',
+            filePath: data.filePath || 'd:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL_DONG_BO.xlsx',
             message: `⚠️ Excel đang mở: Đã lưu vào ${data.fileName}`
           });
           if (showNotification) {
@@ -976,7 +1009,7 @@ export const AppProvider = ({ children }) => {
         setLocalExcelStatus({
           status: 'saved',
           lastSaved: timeStr,
-          filePath: data.filePath || 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+          filePath: data.filePath || 'd:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx',
           message: `Đã lưu CSDL_PHOTO_LOCAL.xlsx (${timeStr})`
         });
         if (showNotification) {
@@ -991,7 +1024,7 @@ export const AppProvider = ({ children }) => {
       setLocalExcelStatus({
         status: 'error',
         lastSaved: null,
-        filePath: 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+        filePath: 'd:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx',
         message: 'Lỗi ghi file Excel máy (kiểm tra xem file có đang mở trong Excel không)'
       });
       return false;
@@ -1002,34 +1035,27 @@ export const AppProvider = ({ children }) => {
   const openLocalExcelFile = async () => {
     try {
       // Trước khi mở, tự động lưu phiên bản mới nhất vào file
-      await saveToLocalExcelFile(false);
-      const res = await fetch('/api/open-local-excel', { method: 'POST' });
-      if (!res.ok) {
-        alert('Chức năng mở file Excel trực tiếp khả dụng khi chạy ứng dụng trên máy tính. Trên nền tảng web cloud, bạn có thể mở file tại thư mục:\ne:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
-        return;
-      }
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        alert('Bạn có thể mở trực tiếp file tại thư mục dự án:\ne:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
+      await saveToLocalExcelFile(false, false);
+      const res = await fetchLocalExcelEndpoint('/api/open-local-excel', { method: 'POST' });
+      if (!res) {
+        alert('Chức năng mở file Excel trực tiếp khả dụng khi chạy ứng dụng trên máy tính. Bạn có thể mở file tại thư mục:\nd:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx');
         return;
       }
       const data = await res.json();
       if (!data.success) {
-        alert(data.message || 'Không thể mở file Excel tự động. Bạn có thể mở trực tiếp tại: e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
+        alert(data.message || 'Không thể mở file Excel tự động. Bạn có thể mở trực tiếp tại: d:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx');
       }
     } catch (err) {
       console.error(err);
-      alert('Bạn có thể mở trực tiếp file tại thư mục dự án:\ne:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
+      alert('Bạn có thể mở trực tiếp file tại thư mục dự án:\nd:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx');
     }
   };
 
   // 3. Đọc dữ liệu từ file Excel CSDL_PHOTO_LOCAL.xlsx vào ứng dụng
   const loadFromLocalExcelFile = async (forceOverwrite = false) => {
     try {
-      const res = await fetch('/api/local-excel');
-      if (!res.ok) return null;
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) return null;
+      const res = await fetchLocalExcelEndpoint('/api/local-excel');
+      if (!res) return null;
 
       const result = await res.json();
       if (result.success && result.exists && result.data) {
@@ -1060,7 +1086,7 @@ export const AppProvider = ({ children }) => {
         setLocalExcelStatus({
           status: 'saved',
           lastSaved: timeStr,
-          filePath: result.filePath || 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+          filePath: result.filePath || 'd:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx',
           message: `Đã nạp từ CSDL_PHOTO_LOCAL.xlsx`
         });
 
@@ -1074,8 +1100,8 @@ export const AppProvider = ({ children }) => {
 
   // 4. LƯU TRỮ SONG SONG (DUAL-WRITE): Ghi đồng thời File Excel máy tính và Google Sheets
   const syncToGoogleSheets = async (isAutoSync = false) => {
-    // LUỒNG 1: GHI TỨC THÌ VÀO FILE EXCEL MÁY TÍNH (HOÀN TOÀN KHÔNG CẦN INTERNET)
-    const localSavePromise = saveToLocalExcelFile(false);
+    // LUỒNG 1: GHI TỨC THÌ VÀO FILE EXCEL MÁY TÍNH (Nếu bấm nút Lưu CSDL trên Cloud mà chưa chạy server local thì tự động tải file CSDL_PHOTO_LOCAL.xlsx về máy)
+    const localSavePromise = saveToLocalExcelFile(false, !isAutoSync);
 
     const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
 
@@ -1086,7 +1112,7 @@ export const AppProvider = ({ children }) => {
       await localSavePromise;
       setSyncStatus({ 
         status: 'offline_saved', 
-        message: `🟠 Ngoại tuyến: Đã lưu an toàn vào e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx (Sẽ tự động đồng bộ Google Sheets khi có Internet)!` 
+        message: `🟠 Ngoại tuyến: Đã lưu an toàn vào d:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx (Sẽ tự động đồng bộ Google Sheets khi có Internet)!` 
       });
       setTimeout(() => setSyncStatus({ status: 'idle', message: '' }), 5000);
       return;
@@ -1428,7 +1454,7 @@ export const AppProvider = ({ children }) => {
       setIsOnline(false);
       setSyncStatus({
         status: 'offline_saved',
-        message: '🟠 Đang ngoại tuyến: Hệ thống đang lưu trực tiếp vào File Excel máy tính (e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx)'
+        message: '🟠 Đang ngoại tuyến: Hệ thống đang lưu trực tiếp vào File Excel máy tính (d:\\APP-PHOTO26\\CSDL_PHOTO_LOCAL.xlsx)'
       });
       setTimeout(() => setSyncStatus({ status: 'idle', message: '' }), 5000);
     };

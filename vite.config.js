@@ -9,6 +9,7 @@ import { exec } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const EXCEL_PATH = path.resolve(__dirname, 'CSDL_PHOTO_LOCAL.xlsx');
+const ROOT_EXCEL_PATH = path.resolve(__dirname, '..', 'CSDL_PHOTO_LOCAL.xlsx');
 const xlsxLib = XLSX.default || XLSX;
 
 // Custom Plugin: Lưu trữ và đồng bộ CSDL trực tiếp vào file Excel trong thư mục dự án
@@ -18,8 +19,9 @@ function localExcelStoragePlugin() {
     configureServer(server) {
       // 1. Endpoint Lưu / Đọc CSDL Excel Cục Bộ
       server.middlewares.use('/api/local-excel', (req, res, next) => {
-        // Cho phép CORS nội bộ
+        // Cho phép CORS nội bộ & kết nối từ Vercel Cloud về localhost
         res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Private-Network', 'true');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -31,7 +33,7 @@ function localExcelStoragePlugin() {
         // GET: Đọc dữ liệu từ file Excel CSDL Cục Bộ
         if (req.method === 'GET') {
           try {
-            let targetFile = EXCEL_PATH;
+            let targetFile = fs.existsSync(ROOT_EXCEL_PATH) ? ROOT_EXCEL_PATH : EXCEL_PATH;
             if (!fs.existsSync(targetFile)) {
               const syncPath = path.resolve(__dirname, 'CSDL_PHOTO_LOCAL_DONG_BO.xlsx');
               if (fs.existsSync(syncPath)) targetFile = syncPath;
@@ -42,7 +44,7 @@ function localExcelStoragePlugin() {
               return res.end(JSON.stringify({ 
                 success: false, 
                 exists: false, 
-                message: 'Chưa có file CSDL_PHOTO_LOCAL.xlsx. Hãy bấm Lưu để tạo file mới!' 
+                message: 'Chưa có file CSDL_PHOTO_LOCAL.xlsx. Hãy bấm Lưu CSDL để tạo file mới!' 
               }));
             }
 
@@ -63,9 +65,9 @@ function localExcelStoragePlugin() {
                 week: r['Tuần'] || 'Tuần 1',
                 teacherName: r['Tên Giáo Viên'] || '',
                 className: r['Lớp'] || '',
-                subject: r['Môn Học / Nội Dung'] || '',
+                subject: r['Tài liệu'] || r['Môn Học / Nội Dung'] || '',
                 studentCount: Number(r['Sĩ Số']) || 0,
-                extraCount: Number(r['Số Lượng Lẻ']) || 0,
+                extraCount: Number(r['SL Lẻ'] ?? r['Số Lượng Lẻ']) || 0,
                 unitPrice: Number(r['Đơn Giá (đ)']) || 380,
                 amount: Number(r['Thành Tiền (đ)']) || 0,
                 isPaid: r['Đã Thanh Toán'] === 'ĐÃ THU',
@@ -134,9 +136,9 @@ function localExcelStoragePlugin() {
                   'Tuần': item.week || '',
                   'Tên Giáo Viên': item.teacherName || '',
                   'Lớp': item.className || '',
-                  'Môn Học / Nội Dung': item.subject || '',
+                  'Tài liệu': item.subject || '',
                   'Sĩ Số': Number(item.studentCount) || 0,
-                  'Số Lượng Lẻ': Number(item.extraCount) || 0,
+                  'SL Lẻ': Number(item.extraCount) || 0,
                   'Tổng Bản In': copies,
                   'Đơn Giá (đ)': Number(item.unitPrice) || 0,
                   'Thành Tiền (đ)': amount,
@@ -175,13 +177,13 @@ function localExcelStoragePlugin() {
                 'Loại': cf.type === 'THU' ? 'THU TIỀN' : 'CHI TIỀN',
                 'Số Tiền (đ)': Number(cf.amount) || 0,
                 'Hạng Mục': cf.category || '',
-                'Người Giao Dịch': cf.person || '',
+                'Người Giao Dịch': cf.person || cf.payer || '',
                 'Ghi Chú': cf.note || ''
               }));
               const wsCashflow = xlsxLib.utils.json_to_sheet(cashflowData.length > 0 ? cashflowData : [{ 'Thông báo': 'Chưa có giao dịch thu chi nào' }]);
               xlsxLib.utils.book_append_sheet(wb, wsCashflow, 'SoQuyThuChi');
 
-              // 4. Sheet: TongHopTuan (Tổng hợp nhanh theo tuần)
+              // 4. Sheet: TongHopDoanhThu (Tổng hợp nhanh theo tuần)
               const weekMap = {};
               (payload.billingItems || []).forEach(item => {
                 const w = item.week || 'Tuần 1';
@@ -205,7 +207,7 @@ function localExcelStoragePlugin() {
               const wsSummary = xlsxLib.utils.json_to_sheet(summaryData.length > 0 ? summaryData : [{ 'Thông báo': 'Chưa có dữ liệu tổng hợp' }]);
               xlsxLib.utils.book_append_sheet(wb, wsSummary, 'TongHopDoanhThu');
 
-              // Ghi trực tiếp ra file Excel trong thư mục dự án
+              // Ghi trực tiếp ra file Excel trong thư mục dự án và thư mục gốc D:\APP-PHOTO26
               const fileBuf = xlsxLib.write(wb, { type: 'buffer', bookType: 'xlsx' });
               
               // Luôn lưu file đồng bộ song song dự phòng
@@ -214,7 +216,12 @@ function localExcelStoragePlugin() {
                 fs.writeFileSync(syncPath, fileBuf);
               } catch (e) {}
 
-              // Thử ghi vào file chính CSDL_PHOTO_LOCAL.xlsx
+              // Ghi đồng thời vào cả thư mục gốc D:\APP-PHOTO26\CSDL_PHOTO_LOCAL.xlsx
+              try {
+                fs.writeFileSync(ROOT_EXCEL_PATH, fileBuf);
+              } catch (e) {}
+
+              // Thử ghi vào file chính CSDL_PHOTO_LOCAL.xlsx trong TinhTienPhoTo2026
               let isLocked = false;
               try {
                 fs.writeFileSync(EXCEL_PATH, fileBuf);
@@ -231,7 +238,7 @@ function localExcelStoragePlugin() {
               return res.end(JSON.stringify({ 
                 success: true, 
                 isLocked,
-                filePath: isLocked ? syncPath : EXCEL_PATH, 
+                filePath: isLocked ? syncPath : ROOT_EXCEL_PATH, 
                 fileName: isLocked ? 'CSDL_PHOTO_LOCAL_DONG_BO.xlsx' : 'CSDL_PHOTO_LOCAL.xlsx',
                 savedAt: new Date().toISOString(),
                 rowsCount: billingData.length,
@@ -239,7 +246,7 @@ function localExcelStoragePlugin() {
                 cashflowCount: cashflowData.length,
                 message: isLocked 
                   ? '⚠️ File CSDL_PHOTO_LOCAL.xlsx đang được mở trong phần mềm Microsoft Excel! Dữ liệu đã lưu an toàn vào CSDL_PHOTO_LOCAL_DONG_BO.xlsx. Vui lòng đóng cửa sổ Excel để hệ thống tự động lưu vào file chính!'
-                  : `Đã lưu thành công vào file Excel: ${EXCEL_PATH}`
+                  : `Đã lưu thành công vào file Excel: ${ROOT_EXCEL_PATH}`
               }));
             } catch (err) {
               console.error('Lỗi khi ghi file Excel cục bộ:', err);
@@ -257,6 +264,7 @@ function localExcelStoragePlugin() {
       // 2. Endpoint Mở file Excel trực tiếp trên Windows (Excel / LibreOffice)
       server.middlewares.use('/api/open-local-excel', (req, res, next) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Private-Network', 'true');
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -266,7 +274,7 @@ function localExcelStoragePlugin() {
         }
 
         if (req.method === 'POST') {
-          let openTarget = EXCEL_PATH;
+          let openTarget = fs.existsSync(ROOT_EXCEL_PATH) ? ROOT_EXCEL_PATH : EXCEL_PATH;
           if (!fs.existsSync(openTarget)) {
             const syncPath = path.resolve(__dirname, 'CSDL_PHOTO_LOCAL_DONG_BO.xlsx');
             if (fs.existsSync(syncPath)) openTarget = syncPath;
