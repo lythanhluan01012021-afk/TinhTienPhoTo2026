@@ -75,22 +75,46 @@ function doPost(e) {
     var data = JSON.parse(rawData);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 1. ACTION: LƯU & CẬP NHẬT DỮ LIỆU PHOTO (UPSERT - KHÔNG TRÙNG LẶP)
+    // 1. ACTION: LƯU & CẬP NHẬT DỮ LIỆU PHOTO (ĐỒNG BỘ CHUẨN XÁC THEO TUẦN & ĐỊNH DẠNG TIỀN TỆ VNĐ)
     if (data.action === "saveBillingData") {
       var sheet = getOrCreatePhotoSheet(ss);
       var items = data.items || [];
+      var targetWeek = data.currentWeek || "Tuần 1";
       var timestamp = new Date();
 
       var lastRow = sheet.getLastRow();
-      var idToRowMap = {};
+      var incomingIds = {};
+      items.forEach(function(item) {
+        if (item.id) {
+          incomingIds[item.id.toString().trim()] = true;
+        }
+      });
 
-      // Đọc toàn bộ Mã Giao Dịch hiện có tại Cột A (từ dòng 2)
+      // BƯỚC 1: XÓA CÁC DÒNG CỦA targetWeek ĐÃ BỊ XÓA TRÊN WEB APP
+      // (Duyệt ngược từ dưới lên để không làm nhảy chỉ mục dòng)
       if (lastRow > 1) {
-        var existingIds = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-        for (var i = 0; i < existingIds.length; i++) {
-          var val = existingIds[i][0];
+        var existingData = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+        for (var r = existingData.length - 1; r >= 0; r--) {
+          var rowId = existingData[r][0] ? existingData[r][0].toString().trim() : "";
+          var rowWeek = existingData[r][10] ? existingData[r][10].toString().trim() : "";
+          var rowNumber = r + 2;
+
+          // Nếu dòng này thuộc targetWeek đang lưu nhưng không có trong danh sách gửi lên -> Xóa khỏi Sheet
+          if (rowWeek === targetWeek && rowId && !incomingIds[rowId]) {
+            sheet.deleteRow(rowNumber);
+          }
+        }
+      }
+
+      // BƯỚC 2: CẬP NHẬT HOẶC THÊM MỚI (UPSERT)
+      var currentLastRow = sheet.getLastRow();
+      var idToRowMap = {};
+      if (currentLastRow > 1) {
+        var currentIds = sheet.getRange(2, 1, currentLastRow - 1, 1).getValues();
+        for (var i = 0; i < currentIds.length; i++) {
+          var val = currentIds[i][0];
           if (val) {
-            idToRowMap[val.toString().trim()] = (i + 2); // Lưu vị trí dòng (1-indexed)
+            idToRowMap[val.toString().trim()] = (i + 2);
           }
         }
       }
@@ -106,7 +130,7 @@ function doPost(e) {
         var totalCopies = (Number(item.totalCopies) || (studentCount + extraCount));
         var unitPrice = Number(item.unitPrice) || 380;
         var amount = Number(item.amount) || (totalCopies * unitPrice);
-        var weekLabel = item.week || data.currentWeek || "Tuần 1";
+        var weekLabel = targetWeek;
 
         var rowValues = [
           cleanId,
@@ -122,18 +146,31 @@ function doPost(e) {
           weekLabel
         ];
 
-        // Nếu đã có ID trên Sheet -> CẬP NHẬT VÀO ĐÚNG DÒNG ĐÓ
         if (idToRowMap[cleanId]) {
           var targetRow = idToRowMap[cleanId];
           sheet.getRange(targetRow, 1, 1, 11).setValues([rowValues]);
           updatedCount++;
         } else {
-          // Chưa có -> THÊM MỚI
           sheet.appendRow(rowValues);
           idToRowMap[cleanId] = sheet.getLastRow();
           insertedCount++;
         }
       });
+
+      // BƯỚC 3: ĐỊNH DẠNG CHUẨN TIỀN TỆ VNĐ (CÓ DẤU PHÂN CÁCH HÀNG NGHÌN) & CĂN CHỈNH BẢNG
+      var finalLastRow = sheet.getLastRow();
+      if (finalLastRow > 1) {
+        sheet.getRange(2, 2, finalLastRow - 1, 1).setHorizontalAlignment("center");
+        sheet.getRange(2, 4, finalLastRow - 1, 1).setHorizontalAlignment("center").setFontWeight("bold");
+        // Cột F, G, H: Sĩ Số, Lẻ, Tổng Bản In -> Định dạng số #,##0, căn giữa
+        sheet.getRange(2, 6, finalLastRow - 1, 3).setNumberFormat("#,##0").setHorizontalAlignment("center");
+        // Cột I: Đơn Giá -> Định dạng tiền tệ #,##0 "đ", căn phải
+        sheet.getRange(2, 9, finalLastRow - 1, 1).setNumberFormat('#,##0 "đ"').setHorizontalAlignment("right");
+        // Cột J: Thành Tiền -> Định dạng tiền tệ #,##0 "đ", in đậm, căn phải
+        sheet.getRange(2, 10, finalLastRow - 1, 1).setNumberFormat('#,##0 "đ"').setFontWeight("bold").setHorizontalAlignment("right");
+        // Cột K: Tuần Photo -> Căn giữa, in đậm
+        sheet.getRange(2, 11, finalLastRow - 1, 1).setHorizontalAlignment("center").setFontWeight("bold");
+      }
 
       // CẬP NHẬT HOẶC TẠO TAB CÔNG NỢ THEO TUẦN (CongNo_TheoTuan)
       if (data.classDebts && data.classDebts.length > 0) {
@@ -407,20 +444,54 @@ function getOrCreatePhotoSheet(ss) {
     if (needUpdate) {
       sheet.getRange(2, 11, curLastRow - 1, 1).setValues(colK);
     }
+    // Định dạng tiền tệ VNĐ và số lượng cho các dòng dữ liệu
+    sheet.getRange(2, 6, curLastRow - 1, 3).setNumberFormat("#,##0").setHorizontalAlignment("center");
+    sheet.getRange(2, 9, curLastRow - 1, 1).setNumberFormat('#,##0 "đ"').setHorizontalAlignment("right");
+    sheet.getRange(2, 10, curLastRow - 1, 1).setNumberFormat('#,##0 "đ"').setFontWeight("bold").setHorizontalAlignment("right");
+    sheet.getRange(2, 11, curLastRow - 1, 1).setHorizontalAlignment("center").setFontWeight("bold");
   }
 
   return sheet;
 }
 
 /**
- * HÀM SỬA BẢNG: BỎ CỘT TRẠNG THÁI & GHI CHÚ, ĐƯA TUẦN PHOTO VỀ CỘT K
- * Bạn có thể chọn hàm này trên menu Google Apps Script và bấm "Chạy" (Run).
- * Sheet sẽ lập tức chuyển Tuần Photo về Cột K, xóa sạch Cột L và M!
+ * HÀM SỬA BẢNG TOÀN DIỆN:
+ * 1. Bỏ cột Trạng thái & Ghi chú, đưa Tuần Photo về Cột K.
+ * 2. Tự động quét và xóa 2 dòng rác "Tuần 10" (do nhập thử nghiệm trước đó).
+ * 3. Định dạng cột Thành Tiền & Đơn Giá chuẩn tiền tệ VNĐ có dấu phân cách hàng nghìn (#,##0 "đ").
+ * 4. Căn lề số lượng, lớp, ngày giờ chuẩn chỉ đẹp mắt!
+ * Bạn chỉ cần chọn hàm này và bấm "Chạy" (Run) trên Google Apps Script!
  */
 function chuanHoaVaDienTuan() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getOrCreatePhotoSheet(ss);
-  Logger.log("Đã loại bỏ cột Trạng thái đơn & Ghi chú, đưa Tuần Photo về Cột K thành công!");
+
+  // 1. Quét và xóa bỏ các dòng rác "Tuần 10" nếu có
+  var lastRow = sheet.getLastRow();
+  var deletedCount = 0;
+  if (lastRow > 1) {
+    for (var r = lastRow; r >= 2; r--) {
+      var w11 = sheet.getRange(r, 11).getValue().toString().trim();
+      var w13 = sheet.getLastColumn() >= 13 ? sheet.getRange(r, 13).getValue().toString().trim() : "";
+      if (w11 === "Tuần 10" || w13 === "Tuần 10") {
+        sheet.deleteRow(r);
+        deletedCount++;
+      }
+    }
+  }
+
+  // 2. Định dạng lại chuẩn tiền tệ VNĐ và căn lề cho tất cả các dòng còn lại
+  var newLastRow = sheet.getLastRow();
+  if (newLastRow > 1) {
+    sheet.getRange(2, 2, newLastRow - 1, 1).setHorizontalAlignment("center");
+    sheet.getRange(2, 4, newLastRow - 1, 1).setHorizontalAlignment("center").setFontWeight("bold");
+    sheet.getRange(2, 6, newLastRow - 1, 3).setNumberFormat("#,##0").setHorizontalAlignment("center");
+    sheet.getRange(2, 9, newLastRow - 1, 1).setNumberFormat('#,##0 "đ"').setHorizontalAlignment("right");
+    sheet.getRange(2, 10, newLastRow - 1, 1).setNumberFormat('#,##0 "đ"').setFontWeight("bold").setHorizontalAlignment("right");
+    sheet.getRange(2, 11, newLastRow - 1, 1).setHorizontalAlignment("center").setFontWeight("bold");
+  }
+
+  Logger.log("Đã chuẩn hóa CSDL thành công! Đã xóa " + deletedCount + " dòng rác Tuần 10 và định dạng tiền tệ VNĐ chuẩn.");
 }
 
 function getOrCreateDebtSheet(ss) {

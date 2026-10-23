@@ -146,17 +146,19 @@ export const AppProvider = ({ children }) => {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map(item => {
-            const up = (!item.unitPrice || item.unitPrice === 300) ? 380 : item.unitPrice;
-            const extra = (item.extraCount === 1) ? 0 : (Number(item.extraCount) || 0);
-            const copies = (Number(item.studentCount) || 0) + extra;
-            return {
-              ...item,
-              unitPrice: up,
-              extraCount: extra,
-              amount: copies * up
-            };
-          });
+          return parsed
+            .filter(item => item.week !== 'Tuần 10') // Tự động loại bỏ hoàn toàn dòng rác Tuần 10 thử nghiệm
+            .map(item => {
+              const up = (!item.unitPrice || item.unitPrice === 300) ? 380 : item.unitPrice;
+              const extra = (item.extraCount === 1) ? 0 : (Number(item.extraCount) || 0);
+              const copies = (Number(item.studentCount) || 0) + extra;
+              return {
+                ...item,
+                unitPrice: up,
+                extraCount: extra,
+                amount: copies * up
+              };
+            });
         }
       } catch (e) {
         console.error('Error parsing saved billing items', e);
@@ -758,10 +760,13 @@ export const AppProvider = ({ children }) => {
     setCashflow(prev => prev.filter(r => r.id !== id));
   };
 
-  // Sync to Google Sheets Web App (Hỗ trợ UPSERT - cập nhật thông minh không trùng lặp)
+  // Sync to Google Sheets Web App (Đồng bộ chuẩn xác theo tuần - bảo đảm đúng số dòng)
   const syncToGoogleSheets = async () => {
-    if (billingItems.length === 0 && Object.keys(classDebts).length === 0) {
-      alert('Bảng tính và danh sách công nợ hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.');
+    // Chỉ lấy các dòng thuộc tuần hiện tại (currentWeek)
+    const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
+
+    if (currentWeekItems.length === 0 && Object.keys(classDebts).length === 0) {
+      alert(`Bảng tính và danh sách công nợ của ${currentWeek} hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.`);
       return;
     }
 
@@ -771,12 +776,12 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
-    setSyncStatus({ status: 'syncing', message: `Đang đồng bộ đơn photo & công nợ (${currentWeek}) lên Google Sheets...` });
+    setSyncStatus({ status: 'syncing', message: `Đang đồng bộ ${currentWeekItems.length} đơn photo & công nợ (${currentWeek}) lên Google Sheets...` });
     
     try {
       // Chuẩn bị dữ liệu công nợ các lớp của tuần này (Lưu theo tuần trên CSDL)
       const classDebtsList = Object.entries(classDebts).filter(([_, d]) => (d?.amount || 0) > 0).map(([cls, d]) => {
-        const classPhotoAmount = billingItems
+        const classPhotoAmount = currentWeekItems
           .filter(i => (i.className || '').toLowerCase() === cls.toLowerCase())
           .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
         const debtNum = Number(d?.amount) || 0;
@@ -799,9 +804,10 @@ export const AppProvider = ({ children }) => {
         action: 'saveBillingData',
         folderId: settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId,
         currentWeek: currentWeek,
-        items: billingItems.map(item => ({
+        syncWeekOnly: true,
+        items: currentWeekItems.map(item => ({
           ...item,
-          week: item.week || currentWeek,
+          week: currentWeek,
           statusLabel: ORDER_STATUSES[item.status]?.label || (item.isPaid ? 'Đã thanh toán' : 'Chờ gửi tài liệu')
         })),
         classDebts: classDebtsList,
@@ -816,12 +822,14 @@ export const AppProvider = ({ children }) => {
         body: JSON.stringify(payload)
       });
 
-      // Đánh dấu tất cả các dòng hiện tại đã đồng bộ thành công
-      setBillingItems(prev => prev.map(item => ({ ...item, isSynced: true })));
+      // Đánh dấu các dòng của tuần hiện tại đã đồng bộ thành công
+      setBillingItems(prev => prev.map(item => 
+        (item.week || currentWeek) === currentWeek ? { ...item, isSynced: true } : item
+      ));
 
       setSyncStatus({ 
         status: 'success', 
-        message: `Đã lưu & đồng bộ thành công ${billingItems.length} mục đơn photo và công nợ các lớp lên Google Sheets!` 
+        message: `Đã lưu & đồng bộ chuẩn xác ${currentWeekItems.length} mục đơn photo của ${currentWeek} lên Google Sheets!` 
       });
     } catch (err) {
       console.error(err);
@@ -867,16 +875,18 @@ export const AppProvider = ({ children }) => {
           setSyncStatus({ status: 'info', message: 'Google Sheets hiện chưa có dữ liệu đơn photo nào.' });
         } else {
           const loadedWeeks = new Set(availableWeeks);
-          const loadedItems = data.items.map(item => {
-            const w = item.week || 'Tuần 1';
-            loadedWeeks.add(w);
-            return {
-              ...item,
-              week: w,
-              status: item.status || (item.isPaid ? 'DA_THANH_TOAN' : 'CHO_TAI_LIEU'),
-              isSynced: true
-            };
-          });
+          const loadedItems = data.items
+            .filter(item => item.week !== 'Tuần 10') // Bỏ qua rác Tuần 10 nếu có
+            .map(item => {
+              const w = item.week || 'Tuần 1';
+              loadedWeeks.add(w);
+              return {
+                ...item,
+                week: w,
+                status: item.status || (item.isPaid ? 'DA_THANH_TOAN' : 'CHO_TAI_LIEU'),
+                isSynced: true
+              };
+            });
 
           // Cập nhật danh sách tuần nếu có tuần mới từ Google Sheets
           setAvailableWeeks(Array.from(loadedWeeks));
