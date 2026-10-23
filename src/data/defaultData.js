@@ -406,7 +406,7 @@ export const DEFAULT_CLASSES = [
   },
   {
     "className": "10A2",
-    "studentCount": 43,
+    "studentCount": 42,
     "homeroomTeacher": "Nguyễn Phạm Trà My",
     "grade": "10"
   },
@@ -424,7 +424,7 @@ export const DEFAULT_CLASSES = [
   },
   {
     "className": "10A5",
-    "studentCount": 44,
+    "studentCount": 45,
     "homeroomTeacher": "Ngô Hữu Thọ",
     "grade": "10"
   },
@@ -490,7 +490,7 @@ export const DEFAULT_CLASSES = [
   },
   {
     "className": "11A6",
-    "studentCount": 43,
+    "studentCount": 44,
     "homeroomTeacher": "Nguyễn Văn Nhân",
     "grade": "11"
   },
@@ -526,7 +526,7 @@ export const DEFAULT_CLASSES = [
   },
   {
     "className": "12A2",
-    "studentCount": 40,
+    "studentCount": 41,
     "homeroomTeacher": "Phạm Hữu Phước",
     "grade": "12"
   },

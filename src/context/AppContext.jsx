@@ -70,6 +70,16 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('photo_clean_mock_v4', 'true');
   }
 
+  // Tự động đồng bộ chuẩn xác Tuần 7 theo file Excel thực tế của người dùng (164 dòng = 9.987.400 đ)
+  if (typeof window !== 'undefined' && localStorage.getItem('photo_sync_tuan7_v5') !== 'true') {
+    localStorage.removeItem('photo_billing_items');
+    localStorage.removeItem('photo_class_debts');
+    localStorage.removeItem('photo_weekly_debts_v2');
+    localStorage.removeItem('photo_classes');
+    localStorage.setItem('photo_current_week', 'Tuần 7');
+    localStorage.setItem('photo_sync_tuan7_v5', 'true');
+  }
+
   // Load data from localStorage or fallback to official school data
   const [teachers, setTeachers] = useState(() => {
     const saved = localStorage.getItem('photo_teachers');
@@ -194,14 +204,17 @@ export const AppProvider = ({ children }) => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (!parsed.includes('Tuần 7')) parsed.push('Tuần 7');
+          return parsed;
+        }
       } catch (e) {}
     }
-    return ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5', 'Tuần 6'];
+    return ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5', 'Tuần 6', 'Tuần 7'];
   });
 
   const [currentWeek, setCurrentWeek] = useState(() => {
-    return localStorage.getItem('photo_current_week') || 'Tuần 1';
+    return localStorage.getItem('photo_current_week') || 'Tuần 7';
   });
 
   // Object storing class payments: { [week]: { [className]: { paidAmount, note, paidDate } } }
