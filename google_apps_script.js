@@ -273,7 +273,7 @@ function doGet(e) {
   ).setMimeType(ContentService.MimeType.TEXT);
 }
 
-// Hàm hỗ trợ lấy hoặc tạo sheet NhatKy_Photo
+// Hàm hỗ trợ lấy hoặc tạo sheet NhatKy_Photo và tự động chuẩn hóa 13 cột tiêu đề
 function getOrCreatePhotoSheet(ss) {
   var sheet = ss.getSheetByName("NhatKy_Photo");
   if (!sheet) {
@@ -284,23 +284,26 @@ function getOrCreatePhotoSheet(ss) {
     } else {
       sheet = ss.insertSheet("NhatKy_Photo");
     }
+  }
 
-    sheet.appendRow([
-      "Mã Giao Dịch",
-      "Thời Gian Cập Nhật",
-      "Giáo Viên",
-      "Lớp",
-      "Môn Học / Nội Dung",
-      "Sĩ Số",
-      "Số Lượng Lẻ",
-      "Tổng Bản In",
-      "Đơn Giá (VNĐ)",
-      "Thành Tiền (VNĐ)",
-      "Trạng Thái Đơn",
-      "Ghi Chú",
-      "Tuần Photo"
-    ]);
+  var headers = [
+    "Mã Giao Dịch",
+    "Thời Gian Cập Nhật",
+    "Giáo Viên",
+    "Lớp",
+    "Môn Học / Nội Dung",
+    "Sĩ Số",
+    "Số Lượng Lẻ",
+    "Tổng Bản In",
+    "Đơn Giá (VNĐ)",
+    "Thành Tiền (VNĐ)",
+    "Trạng Thái Đơn",
+    "Ghi Chú",
+    "Tuần Photo"
+  ];
 
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(headers);
     sheet.getRange(1, 1, 1, 13)
          .setFontWeight("bold")
          .setBackground("#1b5ebe")
@@ -308,8 +311,60 @@ function getOrCreatePhotoSheet(ss) {
          .setHorizontalAlignment("center");
     sheet.setFrozenRows(1);
     sheet.setRowHeight(1, 35);
+  } else {
+    var firstCell = sheet.getRange(1, 1).getValue().toString().trim();
+    // Nếu dòng 1 bị chèn nhầm dữ liệu đơn photo (chứa item-...) hoặc tiêu đề không đúng
+    if (firstCell.indexOf("item-") === 0 || firstCell !== "Mã Giao Dịch") {
+      sheet.insertRowBefore(1);
+      sheet.getRange(1, 1, 1, 13).setValues([headers]);
+      sheet.getRange(1, 1, 1, 13)
+           .setFontWeight("bold")
+           .setBackground("#1b5ebe")
+           .setFontColor("#ffffff")
+           .setHorizontalAlignment("center");
+      sheet.setFrozenRows(1);
+      sheet.setRowHeight(1, 35);
+    } else {
+      // Đảm bảo Cột M (cột 13) có tiêu đề "Tuần Photo"
+      var col13 = sheet.getRange(1, 13).getValue().toString().trim();
+      if (!col13 || col13 !== "Tuần Photo") {
+        sheet.getRange(1, 13).setValue("Tuần Photo")
+             .setFontWeight("bold")
+             .setBackground("#1b5ebe")
+             .setFontColor("#ffffff")
+             .setHorizontalAlignment("center");
+      }
+    }
   }
+
+  // Tự động điền "Tuần 1" vào cột M cho các dòng cũ nếu đang bị trống
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    var colM = sheet.getRange(2, 13, lastRow - 1, 1).getValues();
+    var needUpdate = false;
+    for (var r = 0; r < colM.length; r++) {
+      if (!colM[r][0] || colM[r][0].toString().trim() === "") {
+        colM[r][0] = "Tuần 1";
+        needUpdate = true;
+      }
+    }
+    if (needUpdate) {
+      sheet.getRange(2, 13, lastRow - 1, 1).setValues(colM);
+    }
+  }
+
   return sheet;
+}
+
+/**
+ * HÀM SỬA TIÊU ĐỀ & ĐIỀN CỘT TUẦN PHOTO NGAY LẬP TỨC:
+ * Bạn có thể chọn hàm này trên menu Google Apps Script và bấm "Chạy" (Run).
+ * Sheet sẽ lập tức chèn dòng 1 thành tiêu đề chuẩn 13 cột và điền cột M "Tuần Photo"!
+ */
+function chuanHoaVaDienTuan() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreatePhotoSheet(ss);
+  Logger.log("Đã chuẩn hóa tiêu đề 13 cột và điền cột M (Tuần Photo) thành công!");
 }
 
 // Hàm hỗ trợ lấy hoặc tạo sheet CongNo_CacLop (Quản lý trực tiếp nợ của từng lớp)
