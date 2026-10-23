@@ -30,7 +30,8 @@ export const TeacherFilterPanel = () => {
     addBillingItem,
     addBatchClassesForTeacher,
     getStudentCountForClass,
-    setCurrentTab
+    setCurrentTab,
+    currentWeek
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,77 +109,53 @@ export const TeacherFilterPanel = () => {
     });
   }, [selectedTeacher, assignments]);
 
-  // Kiểm tra xem phân công lớp của GV này đã có trong bảng tính Excel hay chưa
-  const isClassAdded = (asg) => {
-    if (!selectedTeacher) return false;
+  // Đếm số lần lớp này của GV đã được thêm vào bảng tính trong tuần hiện tại
+  const getClassAddedCount = (asg) => {
+    if (!selectedTeacher) return 0;
     const cleanTeacherName = removeVietnameseTones(selectedTeacher.name);
     const cleanClass = removeVietnameseTones(asg.className);
     const cleanSubject = removeVietnameseTones(asg.subject);
 
-    return billingItems.some(item => {
+    return billingItems.filter(item => {
+      if ((item.week || currentWeek) !== currentWeek) return false;
       const matchTeacher = removeVietnameseTones(item.teacherName) === cleanTeacherName;
       const matchClass = removeVietnameseTones(item.className) === cleanClass;
       const matchSubject = !asg.subject || removeVietnameseTones(item.subject).includes(cleanSubject) || cleanSubject.includes(removeVietnameseTones(item.subject));
       return matchTeacher && matchClass && matchSubject;
-    });
+    }).length;
   };
 
-  // Kiểm tra xem tất cả các lớp của GV này đã được thêm vào bảng tính chưa
-  const areAllClassesAdded = useMemo(() => {
-    if (!selectedTeacher || teacherAssignments.length === 0) return false;
-    return teacherAssignments.every(asg => isClassAdded(asg));
-  }, [selectedTeacher, teacherAssignments, billingItems]);
+  // Tổng số dòng photo của GV này trong bảng tính tuần hiện tại
+  const teacherTotalCountInGrid = useMemo(() => {
+    if (!selectedTeacher) return 0;
+    const cleanTeacherName = removeVietnameseTones(selectedTeacher.name);
+    return billingItems.filter(item => {
+      if ((item.week || currentWeek) !== currentWeek) return false;
+      return removeVietnameseTones(item.teacherName) === cleanTeacherName;
+    }).length;
+  }, [selectedTeacher, billingItems, currentWeek]);
 
-  // Bật/tắt chọn 1 lớp (thêm hoặc xóa khỏi bảng tính)
-  const handleToggleClass = (asg) => {
+  // Thêm 1 đợt photo mới cho lớp (Luôn thêm mới vào bảng, không xóa dữ liệu trước đó)
+  const handleAddClass = (asg) => {
     if (!selectedTeacher) return;
-    const added = isClassAdded(asg);
+    const studentCount = getStudentCountForClass(asg.className);
+    addBillingItem({
+      teacherName: selectedTeacher.name,
+      className: asg.className,
+      subject: asg.subject || 'Đề cương / Kiểm tra',
+      studentCount: studentCount,
+      extraCount: 0,
+      note: 'In theo lớp'
+    });
 
-    if (added) {
-      // Đã có -> Bỏ chọn (xóa khỏi bảng tính)
-      const cleanTeacherName = removeVietnameseTones(selectedTeacher.name);
-      const cleanClass = removeVietnameseTones(asg.className);
-      const cleanSubject = removeVietnameseTones(asg.subject);
-
-      setBillingItems(prev => prev.filter(item => {
-        const matchTeacher = removeVietnameseTones(item.teacherName) === cleanTeacherName;
-        const matchClass = removeVietnameseTones(item.className) === cleanClass;
-        const matchSubject = !asg.subject || removeVietnameseTones(item.subject).includes(cleanSubject) || cleanSubject.includes(removeVietnameseTones(item.subject));
-        return !(matchTeacher && matchClass && matchSubject);
-      }));
-    } else {
-      // Chưa có -> Thêm vào bảng tính
-      const studentCount = getStudentCountForClass(asg.className);
-      addBillingItem({
-        teacherName: selectedTeacher.name,
-        className: asg.className,
-        subject: asg.subject || 'Đề cương / Kiểm tra',
-        studentCount: studentCount,
-        extraCount: 0, // Mặc định số lượng lẻ là 0 theo yêu cầu
-        note: 'In theo lớp'
-      });
-    }
+    setAddedAnimationClass(asg.className);
+    setTimeout(() => setAddedAnimationClass(null), 1200);
   };
 
-  // Bật/tắt tất cả các lớp của GV
-  const handleToggleAllClasses = () => {
+  // Thêm đợt photo mới cho tất cả các lớp của GV (Luôn thêm mới vào bảng)
+  const handleAddAllClasses = () => {
     if (!selectedTeacher || teacherAssignments.length === 0) return;
-
-    if (areAllClassesAdded) {
-      // Đang chọn hết -> Bỏ chọn tất cả lớp của GV này
-      const cleanTeacherName = removeVietnameseTones(selectedTeacher.name);
-      const classNames = new Set(teacherAssignments.map(a => removeVietnameseTones(a.className)));
-
-      setBillingItems(prev => prev.filter(item => {
-        const matchTeacher = removeVietnameseTones(item.teacherName) === cleanTeacherName;
-        const matchClass = classNames.has(removeVietnameseTones(item.className));
-        return !(matchTeacher && matchClass);
-      }));
-    } else {
-      // Thêm những lớp chưa có vào bảng tính
-      const unaddedAssignments = teacherAssignments.filter(asg => !isClassAdded(asg));
-      addBatchClassesForTeacher(selectedTeacher, unaddedAssignments);
-    }
+    addBatchClassesForTeacher(selectedTeacher, teacherAssignments);
   };
 
   return (
@@ -384,26 +361,27 @@ export const TeacherFilterPanel = () => {
         ) : (
           <div>
             <p style={{ fontSize: '12px', color: 'var(--text-sub)', marginBottom: '8px' }}>
-              Bấm vào lớp để thêm vào bảng tính bên phải:
+              Bấm vào lớp để thêm đợt photo vào bảng tính bên phải:
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '140px', overflowY: 'auto', marginBottom: '12px', paddingRight: '2px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '160px', overflowY: 'auto', marginBottom: '12px', paddingRight: '2px' }}>
               {teacherAssignments.map((asg, idx) => {
                 const studentCount = getStudentCountForClass(asg.className);
-                const isAdded = isClassAdded(asg);
+                const count = getClassAddedCount(asg);
+                const isJustAdded = addedAnimationClass === asg.className;
 
                 return (
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => handleToggleClass(asg)}
+                    onClick={() => handleAddClass(asg)}
                     className="neu-chip"
-                    title={isAdded ? `Đã thêm vào bảng tính (Bấm để bỏ chọn)` : `Bấm để thêm lớp ${asg.className} vào bảng tính`}
+                    title={count > 0 ? `Lớp ${asg.className} đã có ${count} dòng trong bảng tính. Bấm để nhập thêm đợt photo mới!` : `Bấm để thêm lớp ${asg.className} vào bảng tính`}
                     style={{
-                      background: isAdded 
-                        ? 'linear-gradient(135deg, #1B5EBE 0%, #104289 100%)' 
+                      background: count > 0 
+                        ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' 
                         : 'var(--bg-card)',
-                      color: isAdded ? '#ffffff' : 'var(--text-bold)',
-                      border: isAdded ? '1.5px solid #0d346c' : '1px solid #b7cae2',
+                      color: count > 0 ? '#14532d' : 'var(--text-bold)',
+                      border: count > 0 ? '1.5px solid #86efac' : '1px solid #b7cae2',
                       padding: '6px 12px',
                       fontSize: '12.5px',
                       display: 'inline-flex',
@@ -411,25 +389,22 @@ export const TeacherFilterPanel = () => {
                       gap: '6px',
                       cursor: 'pointer',
                       borderRadius: '20px',
-                      boxShadow: isAdded 
-                        ? '0 3px 10px rgba(27, 94, 190, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)' 
+                      boxShadow: count > 0 
+                        ? '0 2px 6px rgba(22, 101, 52, 0.18)' 
                         : 'var(--shadow-sm)',
-                      fontWeight: isAdded ? '700' : '600',
-                      transition: 'all 0.18s ease'
+                      fontWeight: '600',
+                      transition: 'all 0.18s ease',
+                      transform: isJustAdded ? 'scale(1.06)' : 'none'
                     }}
                   >
-                    {isAdded ? (
-                      <CheckCircle2 size={15} color="#ffffff" />
-                    ) : (
-                      <Plus size={14} color="var(--color-primary)" />
-                    )}
+                    <Plus size={14} color={count > 0 ? '#16a34a' : 'var(--color-primary)'} />
 
                     <b style={{ fontSize: '13px' }}>{asg.className}</b>
 
                     <span style={{ 
                       fontSize: '11px', 
-                      background: isAdded ? 'rgba(255,255,255,0.25)' : 'rgba(27,94,190,0.1)', 
-                      color: isAdded ? '#ffffff' : 'var(--color-primary)', 
+                      background: count > 0 ? 'rgba(22, 163, 74, 0.18)' : 'rgba(27,94,190,0.1)', 
+                      color: count > 0 ? '#15803d' : 'var(--color-primary)', 
                       padding: '2px 6px', 
                       borderRadius: '4px',
                       fontWeight: '600'
@@ -437,21 +412,21 @@ export const TeacherFilterPanel = () => {
                       {asg.subject}
                     </span>
 
-                    <span style={{ fontSize: '11px', color: isAdded ? '#d0e3fc' : 'var(--text-muted)' }}>
+                    <span style={{ fontSize: '11px', color: count > 0 ? '#166534' : 'var(--text-muted)' }}>
                       ({studentCount} hs)
                     </span>
 
-                    {isAdded && (
+                    {count > 0 && (
                       <span style={{ 
                         fontSize: '10px', 
-                        background: '#10B981', 
+                        background: '#16a34a', 
                         color: '#ffffff', 
-                        padding: '1px 6px', 
+                        padding: '1px 7px', 
                         borderRadius: '10px',
                         fontWeight: 'bold',
-                        letterSpacing: '0.3px'
+                        letterSpacing: '0.2px'
                       }}>
-                        ✓ Đã chọn
+                        Đã có {count} lần • ➕ Thêm tiếp
                       </span>
                     )}
                   </button>
@@ -459,32 +434,34 @@ export const TeacherFilterPanel = () => {
               })}
             </div>
 
-            {/* Batch Add Button */}
+            {/* Batch Add Button - Luôn thêm mới, không bao giờ xóa dữ liệu */}
             <button
               type="button"
-              onClick={handleToggleAllClasses}
-              className={`neu-btn ${areAllClassesAdded ? 'neu-btn-success' : 'neu-btn-primary'}`}
+              onClick={handleAddAllClasses}
+              className="neu-btn neu-btn-primary"
               style={{ 
                 width: '100%', 
                 fontSize: '13.5px', 
                 padding: '9px 12px',
-                background: areAllClassesAdded ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : undefined,
-                color: areAllClassesAdded ? '#ffffff' : undefined,
-                boxShadow: areAllClassesAdded ? '0 3px 10px rgba(5, 150, 105, 0.4)' : undefined
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
               }}
+              title="Bấm để nạp thêm các lớp vào bảng tính (luôn cộng thêm, không xóa dòng cũ)"
             >
-              {areAllClassesAdded ? (
-                <>
-                  <CheckCircle2 size={16} />
-                  <span>✓ Đã Chọn Tất Cả {teacherAssignments.length} Lớp (Bấm Để Bỏ Chọn Hết)</span>
-                </>
-              ) : (
-                <>
-                  <PlusCircle size={16} />
-                  <span>Thêm Tất Cả {teacherAssignments.length} Lớp Của {selectedTeacher.name}</span>
-                </>
-              )}
+              <PlusCircle size={16} />
+              <span>
+                {teacherTotalCountInGrid > 0 
+                  ? `⊕ Nhập Thêm Đợt Mới Cho Cả ${teacherAssignments.length} Lớp Của ${selectedTeacher.name}`
+                  : `⊕ Thêm Tất Cả ${teacherAssignments.length} Lớp Của ${selectedTeacher.name}`}
+              </span>
             </button>
+            <p style={{ fontSize: '11.5px', color: '#047857', marginTop: '6px', textAlign: 'center', fontStyle: 'italic' }}>
+              💡 Mẹo: Bấm vào lớp để thêm các đợt photo mới (không làm mất dữ liệu đã nhập trước đó).
+            </p>
           </div>
         )}
       </div>

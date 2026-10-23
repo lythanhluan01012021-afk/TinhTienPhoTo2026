@@ -11,12 +11,21 @@ import {
   Filter, 
   Calendar,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Save
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const CashflowPage = () => {
-  const { cashflow, addCashflowRecord, removeCashflowRecord } = useApp();
+  const { 
+    cashflow, 
+    addCashflowRecord, 
+    removeCashflowRecord,
+    isCashflowSynced,
+    syncCashflowToGoogleSheets,
+    fetchCashflowFromGoogleSheets,
+    syncStatus 
+  } = useApp();
 
   const [filterType, setFilterType] = useState('ALL'); // 'ALL' | 'THU' | 'CHI'
   const [filterMonth, setFilterMonth] = useState('ALL');
@@ -125,10 +134,63 @@ export const CashflowPage = () => {
           </div>
         </div>
 
-        <button onClick={handleExportExcel} className="neu-btn" style={{ fontSize: '13.5px', padding: '8px 16px' }}>
-          <Download size={16} color="var(--color-primary)" />
-          <span>Xuất Sổ Quỹ Excel</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Badge trạng thái lưu CSDL Sổ Quỹ */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '6px 12px', 
+              borderRadius: '8px', 
+              background: isCashflowSynced ? '#ecfdf5' : '#fffbeb', 
+              border: `1.5px solid ${isCashflowSynced ? '#a7f3d0' : '#fde68a'}`, 
+              fontSize: '12.5px', 
+              fontWeight: 'bold', 
+              color: isCashflowSynced ? '#047857' : '#b45309' 
+            }}
+          >
+            {isCashflowSynced ? <CheckCircle size={15} color="#047857" /> : <AlertCircle size={15} color="#b45309" />}
+            <span>{isCashflowSynced ? 'CSDL: Đã lưu Sheet' : 'Sổ Quỹ chưa lưu Sheet'}</span>
+          </div>
+
+          {/* NÚT LƯU SỔ QUỸ LÊN GOOGLE SHEETS */}
+          <button 
+            type="button"
+            onClick={() => syncCashflowToGoogleSheets()}
+            className="neu-btn"
+            style={{ 
+              fontSize: '13.5px', 
+              padding: '8px 16px', 
+              fontWeight: 'bold',
+              background: 'linear-gradient(135deg, #6d28d9, #5b21b6)',
+              color: '#ffffff',
+              border: 'none',
+              boxShadow: '0 2px 8px rgba(109, 40, 217, 0.35)',
+              cursor: 'pointer'
+            }}
+            title="Lưu toàn bộ nhật ký thu chi vào Google Sheets (Tab SoQuy_ThuChi)"
+          >
+            <Save size={16} />
+            <span>Lưu Sổ Quỹ Lên Google Sheet</span>
+          </button>
+
+          {/* NÚT TẢI TỪ GOOGLE SHEETS */}
+          <button 
+            type="button"
+            onClick={fetchCashflowFromGoogleSheets}
+            className="neu-btn"
+            style={{ fontSize: '13px', padding: '8px 12px', background: '#ffffff', color: '#6d28d9', border: '1.5px solid #c4b5fd' }}
+            title="Tải lại nhật ký thu chi từ Google Sheets (Tab SoQuy_ThuChi)"
+          >
+            <span>📥 Tải Từ Drive</span>
+          </button>
+
+          <button onClick={handleExportExcel} className="neu-btn" style={{ fontSize: '13.5px', padding: '8px 16px' }}>
+            <Download size={16} color="var(--color-primary)" />
+            <span>Xuất Sổ Quỹ Excel</span>
+          </button>
+        </div>
       </div>
 
       {/* 3 Overview Stat Cards */}

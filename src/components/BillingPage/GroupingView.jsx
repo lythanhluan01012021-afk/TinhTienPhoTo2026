@@ -27,6 +27,10 @@ export const GroupingView = () => {
     removeClassDebt,
     clearAllClassDebts,
     totalClassDebts,
+    isDebtsSynced,
+    syncDebtsToGoogleSheets,
+    syncStatus,
+    fetchFromGoogleSheets,
     currentWeek,
     setCurrentWeek,
     availableWeeks,
@@ -281,7 +285,57 @@ export const GroupingView = () => {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Badge trạng thái lưu CSDL Công Nợ */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '6px 12px', 
+              borderRadius: '8px', 
+              background: isDebtsSynced ? '#ecfdf5' : '#fffbeb', 
+              border: `1.5px solid ${isDebtsSynced ? '#a7f3d0' : '#fde68a'}`, 
+              fontSize: '12.5px', 
+              fontWeight: 'bold', 
+              color: isDebtsSynced ? '#047857' : '#b45309' 
+            }}
+          >
+            {isDebtsSynced ? <CheckCircle size={15} color="#047857" /> : <AlertCircle size={15} color="#b45309" />}
+            <span>{isDebtsSynced ? 'CSDL: Đã lưu Sheet' : 'Công nợ chưa lưu'}</span>
+          </div>
+
+          {/* NÚT LƯU CSDL CÔNG NỢ */}
+          <button 
+            type="button"
+            onClick={() => syncDebtsToGoogleSheets(currentWeek)}
+            className="neu-btn"
+            style={{ 
+              fontSize: '13.5px', 
+              padding: '8px 16px', 
+              fontWeight: 'bold',
+              background: 'linear-gradient(135deg, #0f766e, #0d9488)',
+              color: '#ffffff',
+              border: 'none',
+              boxShadow: '0 2px 8px rgba(15, 118, 110, 0.35)',
+              cursor: 'pointer'
+            }}
+            title="Lưu danh sách học sinh / lớp thiếu tiền vào Google Sheets (Tab CongNo_TheoTuan)"
+          >
+            <span>💾 Lưu CSDL Công Nợ ({currentWeek})</span>
+          </button>
+
+          {/* NÚT TẢI TỪ DRIVE */}
+          <button 
+            type="button"
+            onClick={fetchFromGoogleSheets}
+            className="neu-btn"
+            style={{ fontSize: '13px', padding: '8px 12px', background: '#ffffff', color: '#1e40af', border: '1.5px solid #93c5fd' }}
+            title="Tải CSDL công nợ và đơn photo từ Google Sheets"
+          >
+            <span>📥 Tải Từ Drive</span>
+          </button>
+
           <button 
             onClick={() => setIsGroupedView(false)}
             className="neu-btn"

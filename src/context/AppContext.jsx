@@ -175,6 +175,8 @@ export const AppProvider = ({ children }) => {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printClassFilter, setPrintClassFilter] = useState('all');
   const [syncStatus, setSyncStatus] = useState({ status: 'idle', message: '' });
+  const [isDebtsSynced, setIsDebtsSynced] = useState(true);
+  const [isCashflowSynced, setIsCashflowSynced] = useState(true);
 
   // Weekly Billing & Debt Tracking State
   const [availableWeeks, setAvailableWeeks] = useState(() => {
@@ -318,6 +320,7 @@ export const AppProvider = ({ children }) => {
   const updateClassDebt = (className, amount, note = '') => {
     if (!className) return;
     const numAmount = Math.max(0, Number(amount) || 0);
+    setIsDebtsSynced(false);
     setWeeklyDebts(prev => {
       const curWeek = { ...(prev[currentWeek] || {}) };
       if (numAmount === 0 && !note) {
@@ -339,6 +342,7 @@ export const AppProvider = ({ children }) => {
   // Xóa nợ của 1 lớp trong tuần hiện tại
   const removeClassDebt = (className) => {
     if (!className) return;
+    setIsDebtsSynced(false);
     setWeeklyDebts(prev => {
       const curWeek = { ...(prev[currentWeek] || {}) };
       delete curWeek[className];
@@ -347,10 +351,24 @@ export const AppProvider = ({ children }) => {
         [currentWeek]: curWeek
       };
     });
+
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (targetUrl && targetUrl.startsWith('http')) {
+      fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'deleteClassDebt',
+          key: `${currentWeek}_${className}`
+        })
+      }).catch(err => console.error('Lỗi khi xóa công nợ trên Google Sheets:', err));
+    }
   };
 
   // Xóa toàn bộ nợ của tuần hiện tại
   const clearAllClassDebts = () => {
+    setIsDebtsSynced(false);
     setWeeklyDebts(prev => ({
       ...prev,
       [currentWeek]: {}
@@ -755,6 +773,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+
   // Add Cashflow Transaction
   const addCashflowRecord = (record) => {
     const newRecord = {
@@ -767,18 +786,36 @@ export const AppProvider = ({ children }) => {
       note: record.note || ''
     };
     setCashflow(prev => [newRecord, ...prev]);
+    setIsCashflowSynced(false);
   };
 
   const removeCashflowRecord = (id) => {
     setCashflow(prev => prev.filter(r => r.id !== id));
+    setIsCashflowSynced(false);
+
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (targetUrl && targetUrl.startsWith('http') && id) {
+      fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'deleteCashflowRecord',
+          id: id
+        })
+      }).catch(err => console.error('Lỗi khi xóa phiếu thu chi trên Google Sheets:', err));
+    }
   };
 
-  // Sync to Google Sheets Web App (Đồng bộ chuẩn xác theo tuần - bảo đảm đúng số dòng)
+  // 1. Sync Đơn Photo lên Google Sheets (kèm công nợ tuần)
   const syncToGoogleSheets = async (isAutoSync = false) => {
-    // Chỉ lấy các dòng thuộc tuần hiện tại (currentWeek)
     const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
 
-    if (currentWeekItems.length === 0 && Object.keys(classDebts).length === 0) {
+    // Nếu bảng photo trống nhưng có công nợ -> chuyển sang lưu công nợ
+    if (currentWeekItems.length === 0) {
+      if (Object.keys(classDebts).length > 0) {
+        return await syncDebtsToGoogleSheets(currentWeek, isAutoSync);
+      }
       if (!isAutoSync) {
         alert(`Bảng tính và danh sách công nợ của ${currentWeek} hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.`);
       }
@@ -801,7 +838,6 @@ export const AppProvider = ({ children }) => {
     });
     
     try {
-      // Chuẩn bị dữ liệu công nợ các lớp của tuần này (Lưu theo tuần trên CSDL)
       const classDebtsList = Object.entries(classDebts).filter(([_, d]) => (d?.amount || 0) > 0).map(([cls, d]) => {
         const classPhotoAmount = currentWeekItems
           .filter(i => (i.className || '').toLowerCase() === cls.toLowerCase())
@@ -836,7 +872,6 @@ export const AppProvider = ({ children }) => {
         timestamp: new Date().toISOString()
       };
 
-      // Gửi POST tới Google Apps Script với mode no-cors để trình duyệt không chặn chuyển hướng CORS
       await fetch(targetUrl, {
         method: 'POST',
         mode: 'no-cors',
@@ -844,10 +879,10 @@ export const AppProvider = ({ children }) => {
         body: JSON.stringify(payload)
       });
 
-      // Đánh dấu các dòng của tuần hiện tại đã đồng bộ thành công
       setBillingItems(prev => prev.map(item => 
         (item.week || currentWeek) === currentWeek ? { ...item, isSynced: true } : item
       ));
+      setIsDebtsSynced(true);
 
       setSyncStatus({ 
         status: 'success', 
@@ -870,35 +905,226 @@ export const AppProvider = ({ children }) => {
     }, 3500);
   };
 
-  // Tự động lưu lên Google Sheets (Auto-Sync với Debounce 2 giây) khi người dùng sửa dữ liệu
-  const autoSaveTimerRef = useRef(null);
+  // 2. Sync riêng Công Nợ các lớp theo tuần lên Google Sheets (Tab: CongNo_TheoTuan)
+  const syncDebtsToGoogleSheets = async (targetWeek = currentWeek, isAutoSync = false) => {
+    const targetDebts = weeklyDebts[targetWeek] || {};
+    const targetWeekItems = billingItems.filter(item => (item.week || targetWeek) === targetWeek);
 
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      if (!isAutoSync) {
+        alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+      }
+      return;
+    }
+
+    const debtsList = Object.entries(targetDebts).filter(([_, d]) => (d?.amount || 0) > 0).map(([cls, d]) => {
+      const classPhotoAmount = targetWeekItems
+        .filter(i => (i.className || '').toLowerCase() === cls.toLowerCase())
+        .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+      const debtNum = Number(d?.amount) || 0;
+
+      return {
+        key: `${targetWeek}_${cls}`,
+        week: targetWeek,
+        className: cls,
+        homeroomTeacher: getHomeroomTeacher(cls),
+        previousDebt: debtNum,
+        debtAmount: debtNum,
+        photoAmount: classPhotoAmount,
+        totalDue: debtNum + classPhotoAmount,
+        note: d?.note || '',
+        updatedAt: d?.updatedAt || new Date().toLocaleDateString('vi-VN')
+      };
+    });
+
+    setSyncStatus({ 
+      status: 'syncing', 
+      message: isAutoSync
+        ? `Đang tự động lưu CSDL Công Nợ (${targetWeek}) lên Google Sheets...`
+        : `Đang lưu CSDL Công Nợ (${targetWeek}) với ${debtsList.length} lớp lên Google Sheets...` 
+    });
+
+    try {
+      const payload = {
+        action: 'saveClassDebts',
+        currentWeek: targetWeek,
+        classDebts: debtsList,
+        timestamp: new Date().toISOString()
+      };
+
+      await fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      setIsDebtsSynced(true);
+      setSyncStatus({ 
+        status: 'success', 
+        message: isAutoSync
+          ? `Đã tự động lưu thành công CSDL Công Nợ (${targetWeek}) lên Google Sheets!`
+          : `Đã lưu CSDL Công Nợ (${targetWeek}) thành công! (${debtsList.length} lớp còn thiếu/nợ trên Sheet CongNo_TheoTuan)` 
+      });
+    } catch (err) {
+      console.error(err);
+      if (!isAutoSync) {
+        setSyncStatus({
+          status: 'error',
+          message: 'Lỗi kết nối khi gửi dữ liệu công nợ lên Google Sheets. Vui lòng kiểm tra lại mạng.'
+        });
+      }
+    }
+
+    setTimeout(() => {
+      setSyncStatus({ status: 'idle', message: '' });
+    }, 3500);
+  };
+
+  // 3. Sync Sổ Quỹ Thu Chi lên Google Sheets (Tab: SoQuy_ThuChi)
+  const syncCashflowToGoogleSheets = async (customRecords = null, isAutoSync = false) => {
+    const recordsToSync = customRecords || cashflow;
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      if (!isAutoSync) {
+        alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+      }
+      return;
+    }
+
+    setSyncStatus({ 
+      status: 'syncing', 
+      message: isAutoSync
+        ? `Đang tự động lưu ${recordsToSync.length} phiếu Sổ Quỹ lên Google Sheets...`
+        : `Đang lưu ${recordsToSync.length} phiếu Sổ Quỹ lên Google Sheets...` 
+    });
+
+    try {
+      const payload = {
+        action: 'saveCashflow',
+        records: recordsToSync,
+        syncAll: true,
+        timestamp: new Date().toISOString()
+      };
+
+      await fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      setIsCashflowSynced(true);
+      setSyncStatus({ 
+        status: 'success', 
+        message: isAutoSync
+          ? `Đã tự động lưu thành công Sổ Quỹ Thu Chi (${recordsToSync.length} phiếu) lên Google Sheets!`
+          : `Đã lưu thành công Sổ Quỹ Thu Chi (${recordsToSync.length} phiếu) lên Sheet SoQuy_ThuChi!` 
+      });
+    } catch (err) {
+      console.error(err);
+      if (!isAutoSync) {
+        setSyncStatus({
+          status: 'error',
+          message: 'Lỗi kết nối khi lưu Sổ Quỹ lên Google Sheets. Vui lòng kiểm tra lại mạng.'
+        });
+      }
+    }
+
+    setTimeout(() => {
+      setSyncStatus({ status: 'idle', message: '' });
+    }, 3500);
+  };
+
+  // 4. Tải riêng Sổ Quỹ Thu Chi từ Google Sheets
+  const fetchCashflowFromGoogleSheets = async () => {
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+      return;
+    }
+
+    setSyncStatus({ status: 'syncing', message: 'Đang tải Sổ Quỹ Thu Chi từ Google Sheets...' });
+
+    try {
+      const fetchUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 'action=fetchCashflow';
+      const res = await fetch(fetchUrl);
+      const data = await res.json();
+
+      if (data && data.status === 'success' && Array.isArray(data.cashflow)) {
+        setCashflow(data.cashflow);
+        setIsCashflowSynced(true);
+        setSyncStatus({ 
+          status: 'success', 
+          message: `Đã tải thành công ${data.cashflow.length} phiếu Sổ Quỹ từ Google Sheets!` 
+        });
+      } else {
+        setSyncStatus({ status: 'error', message: 'Không thể đọc dữ liệu Sổ Quỹ từ Google Sheets.' });
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncStatus({
+        status: 'error',
+        message: 'Lỗi kết nối khi tải Sổ Quỹ từ Google Sheets.'
+      });
+    }
+
+    setTimeout(() => {
+      setSyncStatus({ status: 'idle', message: '' });
+    }, 4500);
+  };
+
+  // Tự động lưu Photo lên Google Sheets (Auto-Sync với Debounce 2 giây)
+  const autoSaveTimerRef = useRef(null);
   useEffect(() => {
-    // Chỉ kích hoạt tự động lưu nếu có ít nhất 1 dòng của tuần hiện tại chưa được lưu (isSynced === false)
     const hasUnsavedInCurrentWeek = billingItems.some(
       item => (item.week || currentWeek) === currentWeek && item.isSynced === false
     );
-
     if (!hasUnsavedInCurrentWeek) return;
 
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      syncToGoogleSheets(true); // Tự động lưu ngầm không gây gián đoạn
+      syncToGoogleSheets(true);
     }, 2000);
 
     return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [billingItems, currentWeek, classDebts]);
+  }, [billingItems, currentWeek]);
 
-  // Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về Web App (Đồng bộ chiều về)
+  // Tự động lưu Công Nợ lên Google Sheets khi có chỉnh sửa (Debounce 2.5 giây)
+  const autoSaveDebtsTimerRef = useRef(null);
+  useEffect(() => {
+    if (isDebtsSynced) return;
+    if (autoSaveDebtsTimerRef.current) clearTimeout(autoSaveDebtsTimerRef.current);
+
+    autoSaveDebtsTimerRef.current = setTimeout(() => {
+      syncDebtsToGoogleSheets(currentWeek, true);
+    }, 2500);
+
+    return () => {
+      if (autoSaveDebtsTimerRef.current) clearTimeout(autoSaveDebtsTimerRef.current);
+    };
+  }, [weeklyDebts, currentWeek, isDebtsSynced]);
+
+  // Tự động lưu Sổ Quỹ Thu Chi lên Google Sheets khi có chỉnh sửa (Debounce 2.5 giây)
+  const autoSaveCashflowTimerRef = useRef(null);
+  useEffect(() => {
+    if (isCashflowSynced) return;
+    if (autoSaveCashflowTimerRef.current) clearTimeout(autoSaveCashflowTimerRef.current);
+
+    autoSaveCashflowTimerRef.current = setTimeout(() => {
+      syncCashflowToGoogleSheets(null, true);
+    }, 2500);
+
+    return () => {
+      if (autoSaveCashflowTimerRef.current) clearTimeout(autoSaveCashflowTimerRef.current);
+    };
+  }, [cashflow, isCashflowSynced]);
+
+  // Tải toàn bộ dữ liệu (Photo + Công Nợ + Sổ Quỹ) từ Google Sheets trên Drive về Web App
   const fetchFromGoogleSheets = async () => {
-    // Bảo vệ an toàn chống ghi đè dữ liệu chưa lưu
     if (billingItems.length > 0 && billingItems.some(i => !i.isSynced)) {
       if (!window.confirm('CẢNH BÁO BẢO VỆ DOANH THU: Bảng tính đang có các dòng chưa bấm "Lưu CSDL". Nếu tải từ Drive về lúc này, dữ liệu chưa lưu sẽ bị xóa mất. Bạn có chắc chắn muốn ghi đè không?')) {
         return;
@@ -911,7 +1137,7 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
-    setSyncStatus({ status: 'syncing', message: 'Đang tải dữ liệu từ Google Sheets trên Drive về...' });
+    setSyncStatus({ status: 'syncing', message: 'Đang tải toàn bộ dữ liệu từ Google Sheets trên Drive về...' });
 
     try {
       const fetchUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 'action=fetchBillingData';
@@ -923,40 +1149,42 @@ export const AppProvider = ({ children }) => {
           setSettings(prev => ({ ...prev, sheetUrl: data.spreadsheetUrl }));
         }
 
-        if (data.items.length === 0) {
-          setSyncStatus({ status: 'info', message: 'Google Sheets hiện chưa có dữ liệu đơn photo nào.' });
-        } else {
-          const loadedWeeks = new Set(availableWeeks);
-          const loadedItems = data.items
-            .filter(item => item.week !== 'Tuần 10') // Bỏ qua rác Tuần 10 nếu có
-            .map(item => {
-              const w = item.week || 'Tuần 1';
-              loadedWeeks.add(w);
-              return {
-                ...item,
-                week: w,
-                status: item.status || (item.isPaid ? 'DA_THANH_TOAN' : 'CHO_TAI_LIEU'),
-                isSynced: true
-              };
-            });
-
-          // Cập nhật danh sách tuần nếu có tuần mới từ Google Sheets
-          setAvailableWeeks(Array.from(loadedWeeks));
-
-          // Cập nhật công nợ các tuần nếu có dữ liệu debts trả về
-          if (data.debts && typeof data.debts === 'object' && Object.keys(data.debts).length > 0) {
-            setWeeklyDebts(prev => ({
-              ...prev,
-              ...data.debts
-            }));
-          }
-
-          setBillingItems(loadedItems);
-          setSyncStatus({ 
-            status: 'success', 
-            message: `Đã tải thành công ${data.items.length} mục đơn photo từ Google Sheets trên Drive!` 
+        const loadedWeeks = new Set(availableWeeks);
+        const loadedItems = data.items
+          .filter(item => item.week !== 'Tuần 10')
+          .map(item => {
+            const w = item.week || 'Tuần 1';
+            loadedWeeks.add(w);
+            return {
+              ...item,
+              week: w,
+              status: item.status || (item.isPaid ? 'DA_THANH_TOAN' : 'CHO_TAI_LIEU'),
+              isSynced: true
+            };
           });
+
+        setAvailableWeeks(Array.from(loadedWeeks));
+
+        // Cập nhật công nợ các tuần nếu có dữ liệu debts trả về
+        if (data.debts && typeof data.debts === 'object' && Object.keys(data.debts).length > 0) {
+          setWeeklyDebts(prev => ({
+            ...prev,
+            ...data.debts
+          }));
+          setIsDebtsSynced(true);
         }
+
+        // Cập nhật sổ quỹ thu chi nếu có dữ liệu cashflow trả về
+        if (data.cashflow && Array.isArray(data.cashflow) && data.cashflow.length > 0) {
+          setCashflow(data.cashflow);
+          setIsCashflowSynced(true);
+        }
+
+        setBillingItems(loadedItems);
+        setSyncStatus({ 
+          status: 'success', 
+          message: `Đã tải thành công ${loadedItems.length} đơn photo, CSDL Công Nợ và ${data.cashflow ? data.cashflow.length : 0} phiếu Sổ Quỹ từ Google Sheets!` 
+        });
       } else {
         setSyncStatus({ status: 'error', message: 'Dữ liệu trả về từ Google Sheets không đúng định dạng.' });
       }
@@ -1037,6 +1265,8 @@ export const AppProvider = ({ children }) => {
         getClassDebt,
         getClassDebtNote,
         totalClassDebts,
+        isDebtsSynced,
+        isCashflowSynced,
 
         addBillingItem,
         handleAddBlankRow,
@@ -1050,6 +1280,9 @@ export const AppProvider = ({ children }) => {
         addCashflowRecord,
         removeCashflowRecord,
         syncToGoogleSheets,
+        syncDebtsToGoogleSheets,
+        syncCashflowToGoogleSheets,
+        fetchCashflowFromGoogleSheets,
         fetchFromGoogleSheets,
         getStudentCountForClass,
         getHomeroomTeacher,
