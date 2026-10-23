@@ -12,8 +12,7 @@ import {
   CloudUpload,
   CloudDownload,
   ExternalLink,
-  RotateCcw,
-  Calendar
+  RotateCcw
 } from 'lucide-react';
 
 export const Navbar = () => {
@@ -31,11 +30,7 @@ export const Navbar = () => {
     syncToGoogleSheets,
     fetchFromGoogleSheets,
     clearBillingGrid,
-    totalClassDebts,
-    currentWeek,
-    setCurrentWeek,
-    availableWeeks,
-    addWeek
+    totalClassDebts
   } = useApp();
 
   return (
@@ -105,64 +100,6 @@ export const Navbar = () => {
             maxWidth: '100%'
           }}
         >
-          {/* Nút Tuần: Danh sách sổ xuống từ tuần 1 đến tuần 6 + Nút thêm tuần mới */}
-          <div 
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              background: '#eff6ff', 
-              padding: '4px 8px', 
-              borderRadius: '8px', 
-              border: '1.5px solid #93c5fd', 
-              flexShrink: 0 
-            }}
-          >
-            <Calendar size={14} color="#1d4ed8" />
-            <select
-              value={currentWeek}
-              onChange={(e) => setCurrentWeek(e.target.value)}
-              style={{
-                padding: '4px 8px',
-                borderRadius: '6px',
-                border: '1px solid #93c5fd',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                color: '#1d4ed8',
-                background: '#ffffff',
-                cursor: 'pointer'
-              }}
-              title="Chọn tuần làm việc hiện tại"
-            >
-              {availableWeeks.map(w => (
-                <option key={w} value={w}>{w}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => {
-                const nextNum = availableWeeks.length + 1;
-                const custom = window.prompt(`Nhập tên tuần mới cần thêm vào danh sách (Gợi ý: Tuần ${nextNum}):`, `Tuần ${nextNum}`);
-                if (custom && custom.trim()) {
-                  addWeek(custom.trim());
-                }
-              }}
-              className="neu-btn"
-              style={{ 
-                padding: '4px 8px', 
-                fontSize: '11.5px', 
-                color: '#1d4ed8', 
-                fontWeight: 'bold', 
-                background: '#ffffff', 
-                border: '1px solid #93c5fd',
-                whiteSpace: 'nowrap'
-              }}
-              title="Thêm tuần mới vào danh sách tuần"
-            >
-              <Plus size={12} />
-              <span>Thêm tuần</span>
-            </button>
-          </div>
-
           {/* 1. Toggle Grouped View */}
           <button 
             onClick={() => {
