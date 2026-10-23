@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   FileSpreadsheet, 
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
 
 export const ExcelGrid = () => {
@@ -18,8 +19,20 @@ export const ExcelGrid = () => {
     setIsGroupedView,
     currentWeek,
     setCurrentWeek,
-    availableWeeks
+    availableWeeks,
+    addWeek,
+    handleAddBlankRow
   } = useApp();
+
+  // Xử lý thêm tuần mới
+  const handleAddNewWeek = () => {
+    const nextNum = availableWeeks.length + 1;
+    const custom = window.prompt(`Nhập tên tuần mới cần thêm vào danh sách (Gợi ý: Tuần ${nextNum}):`, `Tuần ${nextNum}`);
+    if (custom && custom.trim()) {
+      const added = addWeek(custom.trim());
+      setCurrentWeek(added);
+    }
+  };
 
   // Lọc các dòng photo thuộc về tuần đang chọn (currentWeek)
   const displayedItems = useMemo(() => {
@@ -93,14 +106,14 @@ export const ExcelGrid = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Bộ chọn Tuần trực tiếp trên Bảng Tính */}
+          {/* Bộ chọn Tuần & Nút Thêm mới tuần trực tiếp trên Bảng Tính */}
           <div 
             style={{ 
               display: 'inline-flex', 
               alignItems: 'center', 
               gap: '6px', 
               background: '#eff6ff', 
-              padding: '4px 10px', 
+              padding: '4px 8px', 
               borderRadius: '8px', 
               border: '1.5px solid #93c5fd' 
             }}
@@ -125,7 +138,47 @@ export const ExcelGrid = () => {
                 <option key={w} value={w}>{w}</option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={handleAddNewWeek}
+              className="neu-btn"
+              style={{ 
+                padding: '4px 9px', 
+                fontSize: '12px', 
+                color: '#1d4ed8', 
+                fontWeight: 'bold', 
+                background: '#ffffff', 
+                border: '1px solid #93c5fd',
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Thêm tuần mới vào danh sách tuần"
+            >
+              <Plus size={13} />
+              <span>Thêm mới</span>
+            </button>
           </div>
+
+          {/* Nút Thêm Dòng Trống phát sinh trực tiếp tại Bảng tính */}
+          <button 
+            onClick={handleAddBlankRow}
+            className="neu-btn"
+            style={{ 
+              fontSize: '13px', 
+              padding: '6px 12px', 
+              color: 'var(--color-primary)', 
+              fontWeight: '600', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px' 
+            }}
+            title="Thêm một dòng trống mới để nhập thủ công phát sinh"
+          >
+            <Plus size={14} color="var(--color-primary)" />
+            <span>Thêm Dòng</span>
+          </button>
 
           {totalClassDebts > 0 ? (
             <button 
@@ -166,10 +219,18 @@ export const ExcelGrid = () => {
         {displayedItems.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
             <FileSpreadsheet size={48} style={{ opacity: 0.4, marginBottom: '12px' }} />
-            <p style={{ fontSize: '16px', fontWeight: 'bold' }}>Bảng tính hiện đang trống</p>
-            <p style={{ fontSize: '13.5px' }}>
-              Hãy chọn Giáo viên ở cột bên trái để nạp các lớp hoặc bấm "Thêm Dòng" để nhập thủ công.
+            <p style={{ fontSize: '16px', fontWeight: 'bold' }}>Bảng tính ({currentWeek}) hiện chưa có đơn photo</p>
+            <p style={{ fontSize: '13.5px', marginBottom: '16px' }}>
+              Hãy chọn Giáo viên ở cột bên trái để nạp các lớp hoặc bấm "Thêm Dòng" để nhập thủ công phát sinh.
             </p>
+            <button
+              onClick={handleAddBlankRow}
+              className="neu-btn neu-btn-primary"
+              style={{ fontSize: '13px', padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={15} />
+              <span>+ Thêm Dòng Trống Mới</span>
+            </button>
           </div>
         ) : (
           <table className="excel-table">
