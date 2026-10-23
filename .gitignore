@@ -29,3 +29,6 @@ dist-ssr/
 *.sln
 *.sw?
 .DS_Store
+
+# Local Excel Database
+CSDL_PHOTO_LOCAL.xlsx

@@ -6,7 +6,11 @@ import {
   Plus, 
   CloudUpload, 
   ShieldCheck, 
-  Copy 
+  Copy,
+  FolderOpen,
+  HardDrive,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { ReconciliationModal } from './ReconciliationModal';
 
@@ -30,7 +34,11 @@ export const ExcelGrid = () => {
     syncStatus,
     syncToGoogleSheets,
     focusedItemId,
-    setFocusedItemId
+    setFocusedItemId,
+    localExcelStatus,
+    isOnline,
+    saveToLocalExcelFile,
+    openLocalExcelFile
   } = useApp();
 
   const [isReconciliationModalOpen, setIsReconciliationModalOpen] = useState(false);
@@ -142,9 +150,33 @@ export const ExcelGrid = () => {
           <div>
             <h2 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span>BẢNG TÍNH TIỀN PHOTO ({currentWeek})</span>
+              
+              {/* Đèn báo trạng thái Mạng: Online / Offline */}
+              {!isOnline ? (
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#c2410c', background: '#ffedd5', border: '1px solid #fed7aa', padding: '2px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <WifiOff size={13} /> Mất mạng (Đã lưu Excel máy)
+                </span>
+              ) : (
+                <span style={{ fontSize: '11px', fontWeight: '600', color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Wifi size={12} /> Trực tuyến
+                </span>
+              )}
+
+              {/* Trạng thái File Excel máy tính */}
+              {localExcelStatus?.lastSaved && (
+                <span 
+                  onClick={openLocalExcelFile}
+                  style={{ fontSize: '11px', fontWeight: '600', color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                  title="Nhấp để mở file CSDL_PHOTO_LOCAL.xlsx trực tiếp trên Excel của máy tính"
+                >
+                  <HardDrive size={12} /> Excel máy: {localExcelStatus.lastSaved}
+                </span>
+              )}
+
+              {/* Trạng thái Đồng bộ Google Sheets */}
               {syncStatus.status === 'syncing' && (
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1d4ed8', background: '#dbeafe', padding: '2px 8px', borderRadius: '12px' }}>
-                  🔄 Đang lưu...
+                  🔄 {syncStatus.message || 'Đang lưu song song...'}
                 </span>
               )}
               {syncStatus.status === 'success' && (
@@ -154,13 +186,13 @@ export const ExcelGrid = () => {
               )}
             </h2>
             <p style={{ fontSize: '12.5px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
-              Hiện có {displayedItems.length} dòng dữ liệu của {currentWeek} • Nhấp vào ô để sửa (Tự động lưu sau 2 giây) • Nhấn thùng rác để xóa tức thì
+              Hiện có {displayedItems.length} dòng dữ liệu của {currentWeek} • Tự động lưu song song (File Excel máy tính & Google Sheet) sau 2 giây
             </p>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Nút Lưu CSDL trực tiếp tại Bảng tính */}
+          {/* Nút Lưu CSDL Song Song trực tiếp tại Bảng tính */}
           <button 
             onClick={() => syncToGoogleSheets(false)}
             className="neu-btn neu-btn-success"
@@ -172,10 +204,33 @@ export const ExcelGrid = () => {
               alignItems: 'center', 
               gap: '6px' 
             }}
-            title={`Lưu và cập nhật toàn bộ ${displayedItems.length} dòng của ${currentWeek} sang Google Sheets ngay lập tức`}
+            title={`Lưu song song toàn bộ ${displayedItems.length} dòng của ${currentWeek} vào file Excel máy tính và Google Sheets`}
           >
             <CloudUpload size={14} />
             <span>Lưu CSDL ({currentWeek})</span>
+          </button>
+
+          {/* Nút Mở File Excel Máy Tính trực tiếp */}
+          <button 
+            type="button"
+            onClick={openLocalExcelFile}
+            className="neu-btn"
+            style={{ 
+              fontSize: '13px', 
+              padding: '6px 13px', 
+              color: '#065f46', 
+              background: '#ecfdf5', 
+              border: '1.5px solid #a7f3d0', 
+              fontWeight: '700', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+            title="Mở trực tiếp file CSDL_PHOTO_LOCAL.xlsx trên phần mềm Microsoft Excel của máy tính để xem, in ấn hoặc sao chép"
+          >
+            <FolderOpen size={14} color="#059669" />
+            <span>Mở Excel Máy</span>
           </button>
 
           {/* Bộ chọn Tuần & Nút Thêm mới tuần trực tiếp trên Bảng Tính */}

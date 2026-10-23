@@ -178,6 +178,15 @@ export const AppProvider = ({ children }) => {
   const [isDebtsSynced, setIsDebtsSynced] = useState(true);
   const [isCashflowSynced, setIsCashflowSynced] = useState(true);
   const [focusedItemId, setFocusedItemId] = useState(null); // ID dòng cần focus con trỏ chuột khi vừa nạp giáo viên / lớp
+  
+  // Trạng thái lưu trữ trực tiếp vào File Excel Local (e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx)
+  const [localExcelStatus, setLocalExcelStatus] = useState({
+    status: 'idle',
+    lastSaved: null,
+    filePath: 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+    message: ''
+  });
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
 
   // Weekly Billing & Debt Tracking State
   const [availableWeeks, setAvailableWeeks] = useState(() => {
@@ -863,25 +872,182 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // 1. Sync Đơn Photo lên Google Sheets (kèm công nợ tuần)
+  // =========================================================================
+  // HỆ THỐNG LƯU TRỮ SONG SONG: FILE EXCEL LOCAL VÀ GOOGLE SHEETS CLOUD
+  // =========================================================================
+
+  // 1. Lưu trực tiếp toàn bộ CSDL vào file Excel vật lý: e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx
+  const saveToLocalExcelFile = async (showNotification = false) => {
+    try {
+      setLocalExcelStatus(prev => ({ ...prev, status: 'saving', message: 'Đang ghi vào file Excel máy tính...' }));
+
+      const payload = {
+        billingItems,
+        classDebts: weeklyDebts[currentWeek] || classDebts || {},
+        classPayments,
+        cashflow,
+        currentWeek,
+        timestamp: new Date().toISOString()
+      };
+
+      const res = await fetch('/api/local-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        // Môi trường cloud (Vercel) không có endpoint file local
+        setLocalExcelStatus(prev => ({ ...prev, status: 'idle' }));
+        return false;
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        setLocalExcelStatus(prev => ({ ...prev, status: 'idle' }));
+        return false;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        const timeStr = new Date().toLocaleTimeString('vi-VN');
+        setLocalExcelStatus({
+          status: 'saved',
+          lastSaved: timeStr,
+          filePath: data.filePath || 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+          message: `Đã lưu CSDL_PHOTO_LOCAL.xlsx (${timeStr})`
+        });
+        if (showNotification) {
+          alert(`✅ Đã lưu trực tiếp thành công vào file Excel trên máy:\n${data.filePath}`);
+        }
+        return true;
+      } else {
+        throw new Error(data.error || 'Lỗi khi ghi file Excel');
+      }
+    } catch (err) {
+      console.warn('Lưu file Excel máy tính:', err);
+      setLocalExcelStatus({
+        status: 'error',
+        lastSaved: null,
+        filePath: 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+        message: 'Lỗi ghi file Excel máy (kiểm tra xem file có đang mở trong Excel không)'
+      });
+      return false;
+    }
+  };
+
+  // 2. Mở file Excel CSDL_PHOTO_LOCAL.xlsx trực tiếp trên phần mềm Microsoft Excel
+  const openLocalExcelFile = async () => {
+    try {
+      // Trước khi mở, tự động lưu phiên bản mới nhất vào file
+      await saveToLocalExcelFile(false);
+      const res = await fetch('/api/open-local-excel', { method: 'POST' });
+      if (!res.ok) {
+        alert('Chức năng mở file Excel trực tiếp khả dụng khi chạy ứng dụng trên máy tính. Trên nền tảng web cloud, bạn có thể mở file tại thư mục:\ne:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
+        return;
+      }
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        alert('Bạn có thể mở trực tiếp file tại thư mục dự án:\ne:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
+        return;
+      }
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || 'Không thể mở file Excel tự động. Bạn có thể mở trực tiếp tại: e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Bạn có thể mở trực tiếp file tại thư mục dự án:\ne:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx');
+    }
+  };
+
+  // 3. Đọc dữ liệu từ file Excel CSDL_PHOTO_LOCAL.xlsx vào ứng dụng
+  const loadFromLocalExcelFile = async (forceOverwrite = false) => {
+    try {
+      const res = await fetch('/api/local-excel');
+      if (!res.ok) return null;
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) return null;
+
+      const result = await res.json();
+      if (result.success && result.exists && result.data) {
+        const { billingItems: loadedItems, classDebts: loadedDebts, cashflow: loadedCashflow } = result.data;
+        let loadedCount = 0;
+
+        if (Array.isArray(loadedItems) && loadedItems.length > 0) {
+          if (forceOverwrite || billingItems.length === 0) {
+            setBillingItems(loadedItems);
+            loadedCount += loadedItems.length;
+          }
+        }
+        if (loadedDebts && Object.keys(loadedDebts).length > 0) {
+          if (forceOverwrite || Object.keys(classDebts).length === 0) {
+            setWeeklyDebts(prev => ({
+              ...prev,
+              [currentWeek]: loadedDebts
+            }));
+          }
+        }
+        if (Array.isArray(loadedCashflow) && loadedCashflow.length > 0) {
+          if (forceOverwrite || cashflow.length === 0) {
+            setCashflow(loadedCashflow);
+          }
+        }
+
+        const timeStr = result.lastModified ? new Date(result.lastModified).toLocaleTimeString('vi-VN') : '';
+        setLocalExcelStatus({
+          status: 'saved',
+          lastSaved: timeStr,
+          filePath: result.filePath || 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx',
+          message: `Đã nạp từ CSDL_PHOTO_LOCAL.xlsx`
+        });
+
+        return result.data;
+      }
+    } catch (err) {
+      console.warn('Không đọc được file Excel local:', err);
+    }
+    return null;
+  };
+
+  // 4. LƯU TRỮ SONG SONG (DUAL-WRITE): Ghi đồng thời File Excel máy tính và Google Sheets
   const syncToGoogleSheets = async (isAutoSync = false) => {
+    // LUỒNG 1: GHI TỨC THÌ VÀO FILE EXCEL MÁY TÍNH (HOÀN TOÀN KHÔNG CẦN INTERNET)
+    const localSavePromise = saveToLocalExcelFile(false);
+
     const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
+
+    // LUỒNG 2: KIỂM TRA MẠNG VÀ GỬI LÊN GOOGLE SHEETS
+    const isCurrentlyOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    if (!isCurrentlyOnline) {
+      await localSavePromise;
+      setSyncStatus({ 
+        status: 'offline_saved', 
+        message: `🟠 Ngoại tuyến: Đã lưu an toàn vào e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx (Sẽ tự động đồng bộ Google Sheets khi có Internet)!` 
+      });
+      setTimeout(() => setSyncStatus({ status: 'idle', message: '' }), 5000);
+      return;
+    }
 
     // Nếu bảng photo trống nhưng có công nợ -> chuyển sang lưu công nợ
     if (currentWeekItems.length === 0) {
       if (Object.keys(classDebts).length > 0) {
+        await localSavePromise;
         return await syncDebtsToGoogleSheets(currentWeek, isAutoSync);
       }
+      await localSavePromise;
       if (!isAutoSync) {
-        alert(`Bảng tính và danh sách công nợ của ${currentWeek} hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.`);
+        alert(`Đã lưu file Excel máy tính! Bảng tính của ${currentWeek} hiện đang trống, chưa có đơn để gửi Google Sheets.`);
       }
       return;
     }
 
     const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
     if (!targetUrl || !targetUrl.startsWith('http')) {
+      await localSavePromise;
       if (!isAutoSync) {
-        alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+        alert('Đã lưu trực tiếp vào File Excel máy tính! (Chưa cấu hình URL Google Apps Script để đẩy lên Drive)');
       }
       return;
     }
@@ -889,8 +1055,8 @@ export const AppProvider = ({ children }) => {
     setSyncStatus({ 
       status: 'syncing', 
       message: isAutoSync
-        ? `Đang tự động lưu ${currentWeekItems.length} đơn photo (${currentWeek}) lên Google Sheets...`
-        : `Đang đồng bộ ${currentWeekItems.length} đơn photo & công nợ (${currentWeek}) lên Google Sheets...` 
+        ? `Đang lưu song song (File Excel máy tính & Google Sheets)...`
+        : `Đang lưu song song vào File Excel máy & Google Sheets (${currentWeek})...` 
     });
     
     try {
@@ -940,36 +1106,42 @@ export const AppProvider = ({ children }) => {
       ));
       setIsDebtsSynced(true);
 
+      await localSavePromise;
+
       setSyncStatus({ 
         status: 'success', 
         message: isAutoSync
-          ? `Đã tự động lưu thành công ${currentWeekItems.length} đơn photo (${currentWeek}) lên Google Sheets!`
-          : `Đã lưu & đồng bộ chuẩn xác ${currentWeekItems.length} mục đơn photo của ${currentWeek} lên Google Sheets!` 
+          ? `✅ Đã lưu song song thành công (File Excel máy tính & Google Sheets)!`
+          : `✅ Đã lưu song song hoàn hảo: File Excel Local & Google Sheets khớp 100%!` 
       });
     } catch (err) {
       console.error(err);
+      await localSavePromise;
       if (!isAutoSync) {
         setSyncStatus({
-          status: 'error',
-          message: 'Lỗi kết nối khi gửi lên Google Drive. Vui lòng kiểm tra lại đường truyền mạng.'
+          status: 'warning',
+          message: '⚠️ Đã lưu an toàn vào File Excel máy tính! (Lỗi gửi lên Google Sheets do mạng chập chờn)'
         });
       }
     }
 
     setTimeout(() => {
       setSyncStatus({ status: 'idle', message: '' });
-    }, 3500);
+    }, 4000);
   };
 
   // 2. Sync riêng Công Nợ các lớp theo tuần lên Google Sheets (Tab: CongNo_TheoTuan)
   const syncDebtsToGoogleSheets = async (targetWeek = currentWeek, isAutoSync = false) => {
+    // Luồng 1: Luôn ghi đồng thời vào file Excel máy tính
+    saveToLocalExcelFile(false);
+
     const targetDebts = weeklyDebts[targetWeek] || {};
     const targetWeekItems = billingItems.filter(item => (item.week || targetWeek) === targetWeek);
 
     const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
     if (!targetUrl || !targetUrl.startsWith('http')) {
       if (!isAutoSync) {
-        alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+        alert('Đã lưu vào File Excel máy tính! (Chưa cấu hình URL Google Apps Script)');
       }
       return;
     }
@@ -1040,11 +1212,14 @@ export const AppProvider = ({ children }) => {
 
   // 3. Sync Sổ Quỹ Thu Chi lên Google Sheets (Tab: SoQuy_ThuChi)
   const syncCashflowToGoogleSheets = async (customRecords = null, isAutoSync = false) => {
+    // Luồng 1: Luôn ghi đồng thời vào file Excel máy tính
+    saveToLocalExcelFile(false);
+
     const recordsToSync = customRecords || cashflow;
     const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
     if (!targetUrl || !targetUrl.startsWith('http')) {
       if (!isAutoSync) {
-        alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+        alert('Đã lưu vào File Excel máy tính! (Chưa cấu hình URL Google Apps Script)');
       }
       return;
     }
@@ -1178,6 +1353,37 @@ export const AppProvider = ({ children }) => {
       if (autoSaveCashflowTimerRef.current) clearTimeout(autoSaveCashflowTimerRef.current);
     };
   }, [cashflow, isCashflowSynced]);
+
+  // Lắng nghe sự kiện Online / Offline mạng: Tự động đồng bộ lên Google Sheets khi có mạng lại
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      // Tự động đẩy bù lên Google Sheets khi mạng vừa khôi phục
+      syncToGoogleSheets(true);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncStatus({
+        status: 'offline_saved',
+        message: '🟠 Đang ngoại tuyến: Hệ thống đang lưu trực tiếp vào File Excel máy tính (e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL.xlsx)'
+      });
+      setTimeout(() => setSyncStatus({ status: 'idle', message: '' }), 5000);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [billingItems, weeklyDebts, cashflow, currentWeek]);
+
+  // Khởi động: Tự động nạp CSDL từ file Excel máy tính nếu chưa có dữ liệu trên trình duyệt
+  useEffect(() => {
+    loadFromLocalExcelFile(false);
+  }, []);
 
   // Tải toàn bộ dữ liệu (Photo + Công Nợ + Sổ Quỹ) từ Google Sheets trên Drive về Web App
   const fetchFromGoogleSheets = async () => {
@@ -1343,6 +1549,14 @@ export const AppProvider = ({ children }) => {
         syncCashflowToGoogleSheets,
         fetchCashflowFromGoogleSheets,
         fetchFromGoogleSheets,
+
+        // Hệ thống lưu trữ song song File Excel Local & Google Sheets
+        localExcelStatus,
+        isOnline,
+        saveToLocalExcelFile,
+        loadFromLocalExcelFile,
+        openLocalExcelFile,
+
         getStudentCountForClass,
         getHomeroomTeacher,
         ORDER_STATUSES

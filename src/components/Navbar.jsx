@@ -11,7 +11,9 @@ import {
   CloudUpload,
   CloudDownload,
   ExternalLink,
-  RotateCcw
+  RotateCcw,
+  FolderOpen,
+  WifiOff
 } from 'lucide-react';
 
 export const Navbar = () => {
@@ -28,7 +30,10 @@ export const Navbar = () => {
     syncToGoogleSheets,
     fetchFromGoogleSheets,
     clearBillingGrid,
-    totalClassDebts
+    totalClassDebts,
+    openLocalExcelFile,
+    isOnline,
+    localExcelStatus
   } = useApp();
 
   return (
@@ -158,16 +163,59 @@ export const Navbar = () => {
             <span>Tải Từ Drive</span>
           </button>
 
-          {/* 6. Save to Google Sheets */}
+          {/* 6. Save CSDL Song Song (File Excel Máy + Google Sheets) */}
           <button 
             onClick={syncToGoogleSheets}
             className="neu-btn neu-btn-success"
-            title="Lưu & Cập nhật lên Google Sheets (Tự động chống trùng lặp)"
+            title="Lưu song song vào File Excel trên máy tính (CSDL_PHOTO_LOCAL.xlsx) và Google Sheets"
             style={{ fontSize: '13px', padding: '7px 15px', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
             <CloudUpload size={15} />
             <span>Lưu CSDL</span>
           </button>
+
+          {/* 6.5 Mở file Excel máy tính trực tiếp */}
+          <button 
+            onClick={openLocalExcelFile}
+            className="neu-btn"
+            title="Mở trực tiếp file Excel CSDL_PHOTO_LOCAL.xlsx trên phần mềm Microsoft Excel máy tính"
+            style={{ 
+              fontSize: '13px', 
+              padding: '7px 12px', 
+              whiteSpace: 'nowrap', 
+              flexShrink: 0,
+              color: '#065f46',
+              backgroundColor: '#ecfdf5',
+              border: '1.5px solid #a7f3d0',
+              fontWeight: '700'
+            }}
+          >
+            <FolderOpen size={15} color="#059669" />
+            <span>Excel Máy</span>
+          </button>
+
+          {/* Đèn báo Ngoại Tuyến nếu mất mạng */}
+          {!isOnline && (
+            <span 
+              style={{
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: '#c2410c',
+                background: '#ffedd5',
+                border: '1px solid #fed7aa',
+                padding: '5px 10px',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+              title="Đang ngoại tuyến: Hệ thống đang lưu trực tiếp vào CSDL_PHOTO_LOCAL.xlsx trên máy"
+            >
+              <WifiOff size={14} /> Ngoại Tuyến (Lưu Excel Máy)
+            </span>
+          )}
 
           {/* 7. Xem CSDL (Mở nhanh Google Sheets CSDL) */}
           <button 

@@ -17,7 +17,9 @@ import {
   Settings as SettingsIcon,
   HelpCircle,
   Database,
-  DollarSign
+  DollarSign,
+  FolderOpen,
+  RefreshCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { fuzzyVietnameseMatch } from '../../utils/vietnameseUtils';
@@ -33,7 +35,12 @@ export const AdminDashboard = () => {
     settings, 
     setSettings,
     departments,
-    resetAllDataToEmpty
+    resetAllDataToEmpty,
+    saveToLocalExcelFile,
+    loadFromLocalExcelFile,
+    openLocalExcelFile,
+    localExcelStatus,
+    isOnline
   } = useApp();
 
   const [activeAdminSubTab, setActiveAdminSubTab] = useState('teachers'); // 'teachers' | 'assignments' | 'classes' | 'database' | 'settings'
@@ -1883,6 +1890,87 @@ function cleanDuplicates() {
       {/* SUB-TAB 4: GOOGLE DRIVE & GOOGLE SHEETS DATABASE */}
       {activeAdminSubTab === 'database' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* CSDL Excel Local (Máy tính) */}
+          <div 
+            className="neu-card-sm"
+            style={{ 
+              padding: '18px', 
+              background: 'linear-gradient(135deg, #ecfdf5, #f0fdf4)', 
+              borderRadius: '14px',
+              borderLeft: '5px solid #059669',
+              border: '1.5px solid #a7f3d0'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '16.5px', fontWeight: 'bold', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <FileSpreadsheet size={20} color="#059669" />
+                  Cơ Sở Dữ Liệu Excel Cục Bộ Trên Máy Tính (Song Song & Ngoại Tuyến):
+                </h3>
+                <p style={{ fontSize: '13.5px', color: '#047857', marginTop: '6px', margin: '6px 0 0 0' }}>
+                  Đường dẫn file: <code style={{ background: '#ffffff', padding: '3px 8px', borderRadius: '5px', fontWeight: 'bold', border: '1px solid #a7f3d0' }}>e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx</code>
+                </p>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '8px', fontSize: '12.5px', color: '#065f46', flexWrap: 'wrap' }}>
+                  <span>📋 <strong>4 Sheet chuẩn:</strong> BangTinhTien, NoCacLop, SoQuyThuChi, TongHopDoanhThu</span>
+                  <span>•</span>
+                  <span>🕒 <strong>Lần lưu gần nhất:</strong> {localExcelStatus?.lastSaved || 'Sẵn sàng'}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={openLocalExcelFile}
+                  className="neu-btn"
+                  style={{
+                    fontSize: '13.5px',
+                    padding: '8px 16px',
+                    color: '#ffffff',
+                    background: '#059669',
+                    border: 'none',
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: 'pointer'
+                  }}
+                  title="Mở file Excel trực tiếp trên phần mềm Microsoft Excel của Windows"
+                >
+                  <FolderOpen size={16} />
+                  <span>Mở File Excel Máy</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => saveToLocalExcelFile(true)}
+                  className="neu-btn neu-btn-primary"
+                  style={{ fontSize: '13.5px', padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  title="Ghi đè toàn bộ dữ liệu hiện tại vào file Excel máy tính ngay lập tức"
+                >
+                  <Save size={16} />
+                  <span>Lưu Vào File Máy Ngay</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm('Bạn có chắc chắn muốn nạp lại dữ liệu từ file Excel máy tính CSDL_PHOTO_LOCAL.xlsx?')) {
+                      const data = await loadFromLocalExcelFile(true);
+                      if (data) alert('Đã nạp thành công dữ liệu từ file Excel máy tính!');
+                      else alert('Không tìm thấy dữ liệu trong file Excel máy tính.');
+                    }
+                  }}
+                  className="neu-btn"
+                  style={{ fontSize: '13.5px', padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  title="Đọc lại dữ liệu từ file Excel máy tính vào hệ thống"
+                >
+                  <RefreshCw size={15} />
+                  <span>Nạp Từ File Máy</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Drive Folder Box */}
           <div 
             className="neu-card-sm"
