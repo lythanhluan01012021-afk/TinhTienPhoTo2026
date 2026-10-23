@@ -165,7 +165,7 @@ export const ExcelGrid = () => {
                         className="excel-cell-input"
                         value={item.teacherName}
                         onChange={(e) => updateBillingItem(item.id, 'teacherName', e.target.value)}
-                        placeholder="Nhập tên GV..."
+                        placeholder="Tên GV / Học sinh / Người in..."
                         style={{ fontWeight: '600' }}
                       />
                     </td>
@@ -177,6 +177,7 @@ export const ExcelGrid = () => {
                         className="excel-cell-input"
                         value={item.className}
                         onChange={(e) => updateBillingItem(item.id, 'className', e.target.value)}
+                        placeholder="Lớp..."
                         style={{ textAlign: 'center', fontWeight: '700', color: 'var(--color-primary)' }}
                       />
                     </td>
@@ -188,7 +189,7 @@ export const ExcelGrid = () => {
                         className="excel-cell-input"
                         value={item.subject}
                         onChange={(e) => updateBillingItem(item.id, 'subject', e.target.value)}
-                        placeholder="Tên đề cương / kiểm tra..."
+                        placeholder="Nội dung photo / tài liệu..."
                       />
                     </td>
 
@@ -200,6 +201,7 @@ export const ExcelGrid = () => {
                         className="excel-cell-input"
                         value={item.studentCount}
                         onChange={(e) => updateBillingItem(item.id, 'studentCount', e.target.value)}
+                        placeholder="0"
                         style={{ textAlign: 'right', fontWeight: '600' }}
                       />
                     </td>
@@ -212,6 +214,7 @@ export const ExcelGrid = () => {
                         className="excel-cell-input"
                         value={item.extraCount}
                         onChange={(e) => updateBillingItem(item.id, 'extraCount', e.target.value)}
+                        placeholder="0"
                         style={{ textAlign: 'right', fontWeight: '600', color: '#b45309' }}
                       />
                     </td>

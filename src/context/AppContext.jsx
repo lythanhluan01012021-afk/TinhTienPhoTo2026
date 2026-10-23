@@ -376,7 +376,7 @@ export const AppProvider = ({ children }) => {
   const getStudentCountForClass = (className) => {
     if (!className) return 0;
     const found = classes.find(c => c.className.toLowerCase() === className.toLowerCase());
-    return found ? found.studentCount : 40;
+    return found ? found.studentCount : 0;
   };
 
   // Helper: Get Homeroom Teacher for a class
@@ -388,19 +388,25 @@ export const AppProvider = ({ children }) => {
 
   // Helper: Add a single item to billing grid
   const addBillingItem = (item) => {
-    const studentCount = Math.max(0, Number(item.studentCount ?? getStudentCountForClass(item.className)) || 0);
-    const extraCount = Math.max(0, Number(item.extraCount ?? 0) || 0);
-    const unitPrice = Math.max(0, Number(item.unitPrice ?? settings.defaultUnitPrice) || settings.defaultUnitPrice);
-    const amount = (studentCount + extraCount) * unitPrice;
+    const studentCount = item.studentCount !== undefined && item.studentCount !== null && item.studentCount !== ''
+      ? Math.max(0, Number(item.studentCount) || 0)
+      : (item.studentCount === '' ? '' : Math.max(0, Number(getStudentCountForClass(item.className)) || 0));
+    const extraCount = item.extraCount !== undefined && item.extraCount !== null && item.extraCount !== ''
+      ? Math.max(0, Number(item.extraCount) || 0)
+      : (item.extraCount === '' ? '' : 0);
+    const unitPrice = item.unitPrice !== undefined && item.unitPrice !== null && item.unitPrice !== ''
+      ? Math.max(0, Number(item.unitPrice) || 0)
+      : (settings.defaultUnitPrice || 380);
+    const amount = ((Number(studentCount) || 0) + (Number(extraCount) || 0)) * (Number(unitPrice) || 0);
 
     const newItem = {
       id: item.id || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       week: item.week || currentWeek || 'Tuần 1',
       teacherName: item.teacherName || '',
       className: item.className || '',
-      subject: item.subject || 'Tài liệu photo',
-      studentCount: studentCount,
-      extraCount: extraCount,
+      subject: item.subject !== undefined ? item.subject : '',
+      studentCount: item.studentCount !== undefined ? item.studentCount : studentCount,
+      extraCount: item.extraCount !== undefined ? item.extraCount : extraCount,
       unitPrice: unitPrice,
       amount: amount,
       status: item.status || 'CHO_TAI_LIEU',
@@ -412,17 +418,25 @@ export const AppProvider = ({ children }) => {
     setBillingItems(prev => [...prev, newItem]);
   };
 
-  // Helper: Thêm 1 dòng trống mới vào bảng tính
+  // Helper: Thêm 1 dòng trống mới vào bảng tính để nhập thủ công phát sinh (GV dạy thay, học sinh tự in...)
   const handleAddBlankRow = () => {
-    addBillingItem({
-      teacherName: teachers[0]?.name || 'Giáo viên',
-      className: classes[0]?.className || '10A1',
-      subject: 'Đề kiểm tra học kỳ',
-      studentCount: classes[0]?.studentCount || 40,
-      extraCount: 0,
-      unitPrice: settings.defaultUnitPrice,
-      note: ''
-    });
+    const newItem = {
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      week: currentWeek || 'Tuần 1',
+      teacherName: '',
+      className: '',
+      subject: '',
+      studentCount: '',
+      extraCount: '',
+      unitPrice: settings.defaultUnitPrice || 380,
+      amount: 0,
+      status: 'CHO_TAI_LIEU',
+      isPaid: false,
+      note: '',
+      isSynced: false
+    };
+
+    setBillingItems(prev => [...prev, newItem]);
     if (currentTab !== 'billing') {
       setCurrentTab('billing');
     }
@@ -659,9 +673,12 @@ export const AppProvider = ({ children }) => {
 
         const updated = { ...item, [field]: value, isSynced: false };
         
-        // If className changes, auto update studentCount if default
+        // If className changes, auto update studentCount only if found in registered classes
         if (field === 'className') {
-          updated.studentCount = getStudentCountForClass(value);
+          const found = classes.find(c => c.className.toLowerCase() === (value || '').trim().toLowerCase());
+          if (found) {
+            updated.studentCount = found.studentCount;
+          }
         }
 
         // If status changes to DA_THANH_TOAN -> set isPaid true, else false
