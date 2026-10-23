@@ -5,7 +5,8 @@ import {
   Trash2,
   Plus,
   CloudUpload,
-  ShieldCheck
+  ShieldCheck,
+  Copy
 } from 'lucide-react';
 import { ReconciliationModal } from './ReconciliationModal';
 
@@ -25,6 +26,7 @@ export const ExcelGrid = () => {
     availableWeeks,
     addWeek,
     handleAddBlankRow,
+    duplicateBillingItem,
     syncStatus,
     syncToGoogleSheets
   } = useApp();
@@ -215,6 +217,29 @@ export const ExcelGrid = () => {
             <span>Thêm Dòng</span>
           </button>
 
+          {/* Nút Sao Chép Dòng Trước để nhân bản dòng nhanh */}
+          <button 
+            type="button"
+            onClick={() => duplicateBillingItem()}
+            className="neu-btn"
+            style={{ 
+              fontSize: '13px', 
+              padding: '6px 13px', 
+              color: '#1e40af', 
+              background: '#eff6ff', 
+              border: '1.5px solid #93c5fd', 
+              fontWeight: 'bold', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+            title="Tự động sao chép toàn bộ thông tin của dòng vừa nhập phía trên để tạo dòng tiếp theo mà không phải gõ lại"
+          >
+            <Copy size={14} color="#2563eb" />
+            <span>Sao Chép Dòng Trước</span>
+          </button>
+
           {totalClassDebts > 0 ? (
             <button 
               onClick={() => setIsGroupedView(true)}
@@ -272,14 +297,14 @@ export const ExcelGrid = () => {
             <thead>
               <tr>
                 <th style={{ width: '45px' }}>STT</th>
-                <th style={{ width: '160px' }}>Tên Giáo Viên</th>
+                <th style={{ minWidth: '185px', width: 'auto' }}>Tên Giáo Viên</th>
                 <th style={{ width: '90px' }}>Lớp</th>
                 <th>Môn Học / Nội Dung Tài Liệu</th>
                 <th style={{ width: '85px' }}>Sĩ Số</th>
                 <th style={{ width: '95px' }}>Số Lượng Lẻ</th>
                 <th style={{ width: '95px' }}>Đơn Giá (đ)</th>
                 <th style={{ width: '130px' }}>Thành Tiền (đ)</th>
-                <th style={{ width: '50px' }}>Xóa</th>
+                <th style={{ width: '75px', textAlign: 'center' }}>Thao Tác</th>
               </tr>
             </thead>
             <tbody>
@@ -294,14 +319,15 @@ export const ExcelGrid = () => {
                     </td>
 
                     {/* Tên GV */}
-                    <td>
+                    <td style={{ minWidth: '185px', width: 'auto' }}>
                       <input 
                         type="text"
                         className="excel-cell-input"
                         value={item.teacherName}
                         onChange={(e) => updateBillingItem(item.id, 'teacherName', e.target.value)}
                         placeholder="Tên GV / Học sinh / Người in..."
-                        style={{ fontWeight: '600' }}
+                        style={{ fontWeight: '600', width: '100%' }}
+                        title={item.teacherName}
                       />
                     </td>
 
@@ -354,27 +380,17 @@ export const ExcelGrid = () => {
                       />
                     </td>
 
-                    {/* Đơn Giá */}
+                    {/* Đơn Giá - Nhập số trực tiếp, không popup phiền toái */}
                     <td style={{ textAlign: 'right' }}>
                       <input 
                         type="number"
                         min="0"
-                        step="380"
-                        list="unit-price-presets"
                         className="excel-cell-input"
                         value={item.unitPrice}
                         onChange={(e) => updateBillingItem(item.id, 'unitPrice', e.target.value)}
                         style={{ textAlign: 'right', fontWeight: 'bold' }}
-                        title="Đơn giá: 380đ/trang (bấm mũi tên lên/xuống để nhân đôi 760đ, 1.140đ...)"
+                        placeholder="380"
                       />
-                      <datalist id="unit-price-presets">
-                        <option value="380" label="380 đ (1 mặt)" />
-                        <option value="760" label="760 đ (2 mặt / nhân đôi)" />
-                        <option value="1140" label="1.140 đ (3 trang)" />
-                        <option value="1520" label="1.520 đ (4 trang)" />
-                        <option value="1900" label="1.900 đ (5 trang)" />
-                        <option value="2280" label="2.280 đ (6 trang)" />
-                      </datalist>
                     </td>
 
                     {/* Thành Tiền (Tự Động) */}
@@ -382,12 +398,21 @@ export const ExcelGrid = () => {
                       {formatVND(item.amount)}
                     </td>
 
-                    {/* Xóa dòng */}
-                    <td style={{ textAlign: 'center' }}>
+                    {/* Thao Tác: Sao Chép & Xóa dòng */}
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <button
+                        type="button"
+                        onClick={() => duplicateBillingItem(item)}
+                        title="Sao chép dòng này thành dòng mới tiếp theo"
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#2563eb', padding: '3px', marginRight: '6px' }}
+                      >
+                        <Copy size={16} />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => removeBillingItem(item.id)}
                         title="Xóa dòng này"
-                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-danger)' }}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-danger)', padding: '3px' }}
                       >
                         <Trash2 size={16} />
                       </button>

@@ -462,6 +462,48 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Helper: Sao chép dòng đã nhập trước đó (hoặc 1 dòng cụ thể) cho dòng tiếp theo
+  const duplicateBillingItem = (sourceItemOrId = null) => {
+    let sourceItem = null;
+
+    if (typeof sourceItemOrId === 'string') {
+      sourceItem = billingItems.find(i => i.id === sourceItemOrId);
+    } else if (sourceItemOrId && typeof sourceItemOrId === 'object') {
+      sourceItem = sourceItemOrId;
+    } else {
+      // Mặc định lấy dòng cuối cùng thuộc tuần hiện tại (currentWeek)
+      const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
+      if (currentWeekItems.length > 0) {
+        sourceItem = currentWeekItems[currentWeekItems.length - 1];
+      }
+    }
+
+    if (!sourceItem) {
+      // Nếu chưa có dòng nào để sao chép thì thêm 1 dòng trống
+      handleAddBlankRow();
+      return;
+    }
+
+    const studentCount = sourceItem.studentCount !== '' ? Number(sourceItem.studentCount) : '';
+    const extraCount = sourceItem.extraCount !== '' ? Number(sourceItem.extraCount) : 0;
+    const unitPrice = Number(sourceItem.unitPrice) || settings.defaultUnitPrice || 380;
+    const totalCopies = (Number(studentCount) || 0) + (Number(extraCount) || 0);
+
+    const duplicatedItem = {
+      ...sourceItem,
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      week: currentWeek || sourceItem.week || 'Tuần 1',
+      unitPrice: unitPrice,
+      amount: totalCopies * unitPrice,
+      isSynced: false
+    };
+
+    setBillingItems(prev => [...prev, duplicatedItem]);
+    if (currentTab !== 'billing') {
+      setCurrentTab('billing');
+    }
+  };
+
   // Helper: Xuất dữ liệu bảng tính ra file Excel (.xlsx)
   const handleExportExcel = () => {
     if (billingItems.length === 0) {
@@ -1270,6 +1312,7 @@ export const AppProvider = ({ children }) => {
 
         addBillingItem,
         handleAddBlankRow,
+        duplicateBillingItem,
         handleExportExcel,
         handleOpenDatabase,
         addBatchClassesForTeacher,
