@@ -1,17 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
-  Users, 
   Filter, 
   Search, 
   Plus, 
-  BookOpen, 
   GraduationCap, 
-  CheckCircle2, 
   ChevronRight,
   PlusCircle,
   X,
-  Sparkles
+  PanelLeftClose,
+  PanelLeftOpen,
+  Zap
 } from 'lucide-react';
 import { fuzzyVietnameseMatch, removeVietnameseTones, matchTeacherGivenName } from '../../utils/vietnameseUtils';
 
@@ -20,9 +19,7 @@ export const TeacherFilterPanel = () => {
     departments, 
     teachers, 
     assignments, 
-    classes,
     billingItems,
-    setBillingItems,
     selectedDept, 
     setSelectedDept, 
     selectedTeacher, 
@@ -31,7 +28,11 @@ export const TeacherFilterPanel = () => {
     addBatchClassesForTeacher,
     getStudentCountForClass,
     setCurrentTab,
-    currentWeek
+    currentWeek,
+    isSidebarCollapsed,
+    setIsSidebarCollapsed,
+    isSidebarAutoHide,
+    setIsSidebarAutoHide
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -135,7 +136,7 @@ export const TeacherFilterPanel = () => {
     }).length;
   }, [selectedTeacher, billingItems, currentWeek]);
 
-  // Thêm 1 đợt photo mới cho lớp (Luôn thêm mới vào bảng, không xóa dữ liệu trước đó)
+  // Thêm 1 đợt photo mới cho lớp (Nếu bật Auto thì tự động ẩn sidebar sau khi chọn lớp)
   const handleAddClass = (asg) => {
     if (!selectedTeacher) return;
     const studentCount = getStudentCountForClass(asg.className);
@@ -150,31 +151,184 @@ export const TeacherFilterPanel = () => {
 
     setAddedAnimationClass(asg.className);
     setTimeout(() => setAddedAnimationClass(null), 1200);
+
+    if (isSidebarAutoHide) {
+      setIsSidebarCollapsed(true);
+    }
   };
 
-  // Thêm đợt photo mới cho tất cả các lớp của GV (Luôn thêm mới vào bảng)
+  // Thêm đợt photo mới cho tất cả các lớp của GV (Nếu bật Auto thì tự động ẩn sidebar sau khi nạp)
   const handleAddAllClasses = () => {
     if (!selectedTeacher || teacherAssignments.length === 0) return;
     addBatchClassesForTeacher(selectedTeacher, teacherAssignments);
+
+    if (isSidebarAutoHide) {
+      setIsSidebarCollapsed(true);
+    }
   };
 
-  return (
-    <div className="neu-card" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #d8e2ef', paddingBottom: '12px' }}>
-        <div 
-          className="neu-card-sm" 
-          style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}
+  // TRẠNG THÁI THU GỌN (COLLAPSED SIDEBAR RAIL)
+  if (isSidebarCollapsed) {
+    return (
+      <div 
+        className="neu-card" 
+        style={{ 
+          padding: '12px 6px', 
+          height: '100%', 
+          width: '52px',
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          gap: '12px',
+          cursor: 'pointer',
+          userSelect: 'none'
+        }}
+        onClick={() => setIsSidebarCollapsed(false)}
+        title="Nhấp để MỞ RỘNG khung Chọn Giáo Viên & Lớp"
+      >
+        {/* Nút Hiện Sidebar */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsSidebarCollapsed(false);
+          }}
+          className="neu-btn neu-btn-primary"
+          style={{
+            width: '38px',
+            height: '38px',
+            padding: 0,
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}
+          title="Hiện khung Chọn Giáo Viên & Lớp"
         >
-          <Filter size={18} />
+          <PanelLeftOpen size={19} />
+        </button>
+
+        {/* Nút Bật/Tắt Auto */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsSidebarAutoHide(!isSidebarAutoHide);
+          }}
+          style={{
+            width: '38px',
+            padding: '5px 2px',
+            borderRadius: '8px',
+            fontSize: '10.5px',
+            fontWeight: 'bold',
+            border: isSidebarAutoHide ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+            background: isSidebarAutoHide ? '#eff6ff' : '#f1f5f9',
+            color: isSidebarAutoHide ? '#1d4ed8' : '#64748b',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            flexShrink: 0
+          }}
+          title={isSidebarAutoHide 
+            ? 'Auto đang BẬT: Tự động ẩn sau khi chọn GV & Lớp (Bấm để tắt)' 
+            : 'Auto đang TẮT: Giữ cố định khung Chọn GV & Lớp (Bấm để bật)'}
+        >
+          <Zap size={12} color={isSidebarAutoHide ? '#2563eb' : '#64748b'} />
+          <span>Auto</span>
+        </button>
+
+        {/* Chữ dọc báo hiệu */}
+        <div 
+          style={{ 
+            writingMode: 'vertical-rl', 
+            textOrientation: 'mixed', 
+            fontSize: '13px', 
+            fontWeight: 'bold', 
+            color: 'var(--color-primary-dark)', 
+            letterSpacing: '1px',
+            marginTop: '8px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          CHỌN GIÁO VIÊN & LỚP {selectedTeacher ? `• ${selectedTeacher.name}` : ''}
         </div>
-        <div>
-          <h2 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)' }}>
-            CHỌN GIÁO VIÊN & LỚP
-          </h2>
-          <p style={{ fontSize: '12.5px', color: 'var(--text-sub)' }}>
-            Lọc theo tổ & nạp nhanh các lớp giảng dạy
-          </p>
+      </div>
+    );
+  }
+
+  // TRẠNG THÁI MỞ RỘNG ĐẦY ĐỦ (EXPANDED SIDEBAR)
+  return (
+    <div className="neu-card" style={{ padding: '18px', height: '100%', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Header kèm Nút Auto và Nút Ẩn/Hiện Sidebar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '2px solid #d8e2ef', paddingBottom: '12px', flexWrap: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <div 
+            className="neu-card-sm" 
+            style={{ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}
+          >
+            <Filter size={17} />
+          </div>
+          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <h2 style={{ fontSize: '15.5px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0 }}>
+              CHỌN GIÁO VIÊN & LỚP
+            </h2>
+            <p style={{ fontSize: '11.5px', color: 'var(--text-sub)', margin: 0 }}>
+              {isSidebarAutoHide ? 'Tự động ẩn sau khi chọn lớp' : 'Đang ghim cố định'}
+            </p>
+          </div>
+        </div>
+
+        {/* Cụm nút điều khiển: Nút Auto + Nút Icon Ẩn Sidebar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setIsSidebarAutoHide(!isSidebarAutoHide)}
+            className="neu-btn"
+            style={{
+              padding: '5px 9px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              borderRadius: '8px',
+              background: isSidebarAutoHide ? 'linear-gradient(135deg, #1b5ebe, #134694)' : '#f1f5f9',
+              color: isSidebarAutoHide ? '#ffffff' : '#475569',
+              border: isSidebarAutoHide ? '1px solid #1d4ed8' : '1px solid #cbd5e1',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer'
+            }}
+            title={isSidebarAutoHide 
+              ? 'Chế độ Auto đang BẬT: Tự động ẩn khung này ngay sau khi bạn chọn lớp để mở rộng Bảng Tính Tiền' 
+              : 'Chế độ Auto đang TẮT: Bấm để bật tự động ẩn sau khi chọn lớp'}
+          >
+            <Zap size={13} />
+            <span>Auto</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(true)}
+            className="neu-btn"
+            style={{
+              width: '32px',
+              height: '32px',
+              padding: 0,
+              borderRadius: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-primary-dark)',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+            title="Ẩn / Thu gọn khung Chọn Giáo Viên & Lớp sang bên trái"
+          >
+            <PanelLeftClose size={17} />
+          </button>
         </div>
       </div>
 
@@ -278,7 +432,6 @@ export const TeacherFilterPanel = () => {
               onClick={() => {
                 setSearchTerm('');
                 setSelectedDept('Tất cả các tổ');
-                setSelectedClassFilter('ALL');
               }}
               className="neu-btn"
               style={{ fontSize: '11.5px', padding: '4px 10px' }}
@@ -361,7 +514,7 @@ export const TeacherFilterPanel = () => {
         ) : (
           <div>
             <p style={{ fontSize: '12px', color: 'var(--text-sub)', marginBottom: '8px' }}>
-              Bấm vào lớp để thêm đợt photo vào bảng tính bên phải:
+              Bấm vào lớp để thêm đợt photo {isSidebarAutoHide ? '(sẽ tự ẩn khung này sau khi chọn)' : 'vào bảng tính bên phải'}:
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '160px', overflowY: 'auto', marginBottom: '12px', paddingRight: '2px' }}>
               {teacherAssignments.map((asg, idx) => {
@@ -460,7 +613,7 @@ export const TeacherFilterPanel = () => {
               </span>
             </button>
             <p style={{ fontSize: '11.5px', color: '#047857', marginTop: '6px', textAlign: 'center', fontStyle: 'italic' }}>
-              💡 Mẹo: Bấm vào lớp để thêm các đợt photo mới (không làm mất dữ liệu đã nhập trước đó).
+              💡 Mẹo: {isSidebarAutoHide ? 'Đang bật Auto — chọn lớp xong khung này sẽ tự thu gọn để bạn nhập bảng tính.' : 'Bấm nút Auto ở góc trên nếu muốn tự thu gọn sau khi chọn lớp.'}
             </p>
           </div>
         )}

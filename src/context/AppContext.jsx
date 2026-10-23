@@ -177,6 +177,11 @@ export const AppProvider = ({ children }) => {
   const [isDebtsSynced, setIsDebtsSynced] = useState(true);
   const [isCashflowSynced, setIsCashflowSynced] = useState(true);
   const [focusedItemId, setFocusedItemId] = useState(null); // ID dòng cần focus con trỏ chuột khi vừa nạp giáo viên / lớp
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Ẩn / Hiện sidebar Chọn Giáo Viên & Lớp
+  const [isSidebarAutoHide, setIsSidebarAutoHide] = useState(() => {
+    const saved = localStorage.getItem('photo_sidebar_auto_hide');
+    return saved !== null ? saved === 'true' : true; // Mặc định bật Auto ẩn sau khi chọn GV & Lớp
+  });
   
   // Trạng thái lưu trữ trực tiếp vào File Excel Local (e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx)
   const [localExcelStatus, setLocalExcelStatus] = useState({
@@ -285,6 +290,14 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('photo_weekly_debts_v2', JSON.stringify(weeklyDebts));
   }, [weeklyDebts]);
+  // Persist sidebar auto-hide preference
+
+  useEffect(() => {
+    localStorage.setItem('photo_sidebar_auto_hide', String(isSidebarAutoHide));
+  }, [isSidebarAutoHide]);
+
+
+  // Persist sidebar auto-hide preference
 
   // Thêm tuần mới vào danh sách tuần (Tuần 1..6 -> Thêm Tuần 7, Tuần 8...)
   const addWeek = (customWeekName) => {
@@ -1580,6 +1593,10 @@ export const AppProvider = ({ children }) => {
         isCashflowSynced,
         focusedItemId,
         setFocusedItemId,
+        isSidebarCollapsed,
+        setIsSidebarCollapsed,
+        isSidebarAutoHide,
+        setIsSidebarAutoHide,
 
         addBillingItem,
         handleAddBlankRow,

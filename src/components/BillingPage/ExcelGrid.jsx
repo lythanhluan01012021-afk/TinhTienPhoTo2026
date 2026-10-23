@@ -12,7 +12,8 @@ import {
   Wifi,
   WifiOff,
   Download,
-  Save
+  Save,
+  PanelLeftOpen
 } from 'lucide-react';
 import { ReconciliationModal } from './ReconciliationModal';
 
@@ -41,7 +42,9 @@ export const ExcelGrid = () => {
     isOnline,
     saveToLocalExcelFile,
     openLocalExcelFile,
-    handleExportExcel
+    handleExportExcel,
+    isSidebarCollapsed,
+    setIsSidebarCollapsed
   } = useApp();
 
   const [isReconciliationModalOpen, setIsReconciliationModalOpen] = useState(false);
@@ -146,6 +149,27 @@ export const ExcelGrid = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          {isSidebarCollapsed && (
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(false)}
+              className="neu-btn neu-btn-primary"
+              style={{
+                padding: '6px 11px',
+                fontSize: '12.5px',
+                fontWeight: 'bold',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+              title="Hiện khung Chọn Giáo Viên & Lớp"
+            >
+              <PanelLeftOpen size={15} />
+              <span>Chọn GV & Lớp</span>
+            </button>
+          )}
           <div 
             className="neu-card-sm" 
             style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}

@@ -9,7 +9,7 @@ import { CashflowPage } from './components/Cashflow/CashflowPage';
 import { PrintViewA4 } from './components/PrintModal/PrintViewA4';
 
 const MainLayout = () => {
-  const { currentTab, isGroupedView } = useApp();
+  const { currentTab, isGroupedView, isSidebarCollapsed } = useApp();
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '16px 24px' }}>
@@ -22,14 +22,23 @@ const MainLayout = () => {
           <div 
             style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'minmax(270px, 2.5fr) minmax(680px, 7.5fr)', 
-              gap: '20px',
+              gridTemplateColumns: isSidebarCollapsed 
+                ? '52px minmax(0, 1fr)' 
+                : 'minmax(275px, 2.5fr) minmax(680px, 7.5fr)', 
+              gap: isSidebarCollapsed ? '12px' : '20px',
               flex: '1',
-              alignItems: 'stretch'
+              alignItems: 'stretch',
+              transition: 'grid-template-columns 0.25s ease, gap 0.25s ease'
             }}
           >
-            {/* Left Column: Teacher Filter & Assigned Classes */}
-            <div className="left-sidebar" style={{ minWidth: '300px' }}>
+            {/* Left Column: Teacher Filter & Assigned Classes (Collapsible Sidebar) */}
+            <div 
+              className="left-sidebar" 
+              style={{ 
+                minWidth: isSidebarCollapsed ? '52px' : '275px',
+                transition: 'min-width 0.25s ease'
+              }}
+            >
               <TeacherFilterPanel />
             </div>
 
