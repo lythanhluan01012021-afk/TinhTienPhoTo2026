@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   FileSpreadsheet, 
   Trash2,
   Plus,
-  CloudUpload
+  CloudUpload,
+  ShieldCheck
 } from 'lucide-react';
+import { ReconciliationModal } from './ReconciliationModal';
 
 export const ExcelGrid = () => {
   const { 
@@ -26,6 +28,8 @@ export const ExcelGrid = () => {
     syncStatus,
     syncToGoogleSheets
   } = useApp();
+
+  const [isReconciliationModalOpen, setIsReconciliationModalOpen] = useState(false);
 
   // Xử lý thêm tuần mới
   const handleAddNewWeek = () => {
@@ -397,7 +401,7 @@ export const ExcelGrid = () => {
       </div>
 
       {/* Grand Total Summary Card */}
-      <div className="grand-total-card">
+      <div className="grand-total-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: '13px', color: 'var(--text-sub)' }}>Tổng Số Lớp Photo:</div>
@@ -414,6 +418,34 @@ export const ExcelGrid = () => {
           </div>
         </div>
 
+        {/* NÚT RÀ SOÁT & ĐỐI CHIẾU DOANH THU CHỐNG THẤT THOÁT */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={() => setIsReconciliationModalOpen(true)}
+            className="neu-btn"
+            style={{
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)',
+              color: '#ffffff',
+              padding: '11px 22px',
+              borderRadius: '12px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '9px',
+              boxShadow: '0 4px 14px rgba(30, 58, 138, 0.35)',
+              border: '1.5px solid #3b82f6',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title="Mở Báo cáo Rà Soát & Đối Chiếu Doanh Thu 4 Chiều (Bảng tính - Google Sheet - Tách lớp - Nợ cũ)"
+          >
+            <ShieldCheck size={20} color="#60a5fa" />
+            <span>🔍 Rà Soát & Đối Chiếu Thu Tiền</span>
+          </button>
+        </div>
+
         {/* Big Total */}
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-sub)', textTransform: 'uppercase' }}>
@@ -424,6 +456,12 @@ export const ExcelGrid = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL RÀ SOÁT & ĐỐI CHIẾU DOANH THU */}
+      <ReconciliationModal 
+        isOpen={isReconciliationModalOpen} 
+        onClose={() => setIsReconciliationModalOpen(false)} 
+      />
     </div>
   );
 };
