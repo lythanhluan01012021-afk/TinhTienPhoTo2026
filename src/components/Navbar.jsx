@@ -7,7 +7,6 @@ import {
   Printer,
   Cloud,
   Layers,
-  Plus,
   Download,
   CloudUpload,
   CloudDownload,
@@ -23,7 +22,6 @@ export const Navbar = () => {
     syncStatus,
     isGroupedView,
     setIsGroupedView,
-    handleAddBlankRow,
     handleExportExcel,
     handleOpenDatabase,
     setIsPrintModalOpen,
@@ -127,18 +125,7 @@ export const Navbar = () => {
             )}
           </button>
 
-          {/* 2. Add Row */}
-          <button 
-            onClick={handleAddBlankRow}
-            className="neu-btn"
-            title="Thêm một dòng trống mới vào bảng tính"
-            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            <Plus size={15} color="var(--color-primary)" />
-            <span>Thêm Dòng</span>
-          </button>
-
-          {/* 3. Export Excel */}
+          {/* 2. Export Excel */}
           <button 
             onClick={handleExportExcel}
             className="neu-btn"
