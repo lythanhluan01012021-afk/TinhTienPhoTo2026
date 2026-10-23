@@ -6,7 +6,9 @@ import {
   DEFAULT_CLASSES,
   DEFAULT_ASSIGNMENTS,
   DEFAULT_SETTINGS,
-  DEFAULT_CASHFLOW
+  DEFAULT_CASHFLOW,
+  DEFAULT_BILLING_ITEMS_TUAN_7,
+  DEFAULT_DEBTS_TUAN_7
 } from '../data/defaultData';
 
 export const ORDER_STATUSES = {
@@ -70,14 +72,13 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('photo_clean_mock_v4', 'true');
   }
 
-  // Tự động đồng bộ chuẩn xác Tuần 7 theo file Excel thực tế của người dùng (164 dòng = 9.987.400 đ)
-  if (typeof window !== 'undefined' && localStorage.getItem('photo_sync_tuan7_v5') !== 'true') {
-    localStorage.removeItem('photo_billing_items');
-    localStorage.removeItem('photo_class_debts');
-    localStorage.removeItem('photo_weekly_debts_v2');
-    localStorage.removeItem('photo_classes');
+  // Tự động nạp chuẩn xác dữ liệu Tuần 7 thực tế của người dùng (164 dòng = 9.987.400 đ)
+  if (typeof window !== 'undefined' && localStorage.getItem('photo_sync_tuan7_v7') !== 'true') {
+    localStorage.setItem('photo_billing_items', JSON.stringify(DEFAULT_BILLING_ITEMS_TUAN_7));
+    localStorage.setItem('photo_weekly_debts_v2', JSON.stringify({ 'Tuần 7': DEFAULT_DEBTS_TUAN_7 }));
     localStorage.setItem('photo_current_week', 'Tuần 7');
-    localStorage.setItem('photo_sync_tuan7_v5', 'true');
+    localStorage.removeItem('photo_classes');
+    localStorage.setItem('photo_sync_tuan7_v7', 'true');
   }
 
   // Load data from localStorage or fallback to official school data
@@ -149,32 +150,20 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : DEFAULT_CASHFLOW;
   });
 
-  // Active Billing items on Page 1 Excel-like grid - starts 100% empty
+  // Active Billing items on Page 1 Excel-like grid - Mặc định nạp 164 dòng chuẩn Tuần 7 (9.987.400 đ)
   const [billingItems, setBillingItems] = useState(() => {
     const saved = localStorage.getItem('photo_billing_items');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .filter(item => item.week !== 'Tuần 10') // Tự động loại bỏ hoàn toàn dòng rác Tuần 10 thử nghiệm
-            .map(item => {
-              const up = (!item.unitPrice || item.unitPrice === 300) ? 380 : item.unitPrice;
-              const extra = (item.extraCount === 1) ? 0 : (Number(item.extraCount) || 0);
-              const copies = (Number(item.studentCount) || 0) + extra;
-              return {
-                ...item,
-                unitPrice: up,
-                extraCount: extra,
-                amount: copies * up
-              };
-            });
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(item => item.week !== 'Tuần 10');
         }
       } catch (e) {
         console.error('Error parsing saved billing items', e);
       }
     }
-    return [];
+    return DEFAULT_BILLING_ITEMS_TUAN_7;
   });
 
   // UI state
@@ -233,21 +222,11 @@ export const AppProvider = ({ children }) => {
     const saved = localStorage.getItem('photo_weekly_debts_v2');
     if (saved) {
       try {
-        return JSON.parse(saved) || {};
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) return parsed;
       } catch (e) {}
     }
-    // Backward compatibility from photo_class_debts
-    const oldDebts = localStorage.getItem('photo_class_debts');
-    if (oldDebts) {
-      try {
-        const parsed = JSON.parse(oldDebts);
-        if (parsed && typeof parsed === 'object') {
-          const initWeek = localStorage.getItem('photo_current_week') || 'Tuần 1';
-          return { [initWeek]: parsed };
-        }
-      } catch (e) {}
-    }
-    return {};
+    return { 'Tuần 7': DEFAULT_DEBTS_TUAN_7 };
   });
 
   // Run on mount to ensure departments for Dang, Tuyen and all teachers match exact school structure
