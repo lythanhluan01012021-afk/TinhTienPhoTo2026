@@ -524,30 +524,73 @@ export const AppProvider = ({ children }) => {
     return newId;
   };
 
-  // Helper: Xuất dữ liệu bảng tính ra file Excel (.xlsx)
+  // Helper: Xuất toàn bộ CSDL 4 Sheet ra file Excel (.xlsx) chuẩn tải về máy
   const handleExportExcel = () => {
-    if (billingItems.length === 0) {
-      alert('Bảng tính hiện chưa có dữ liệu để xuất file Excel.');
-      return;
-    }
+    const wb = XLSX.utils.book_new();
 
-    const dataToExport = billingItems.map((item, idx) => ({
+    // 1. Sheet: BangTinhTien (Chi tiết đơn photo)
+    const billingData = billingItems.map((item, idx) => {
+      const copies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+      const amount = Number(item.amount) || (copies * (Number(item.unitPrice) || 380));
+      return {
+        'STT': idx + 1,
+        'Mã Đơn': item.id || '',
+        'Tuần': item.week || currentWeek,
+        'Tên Giáo Viên': item.teacherName || '',
+        'Lớp': item.className || '',
+        'Môn Học / Nội Dung': item.subject || '',
+        'Sĩ Số': Number(item.studentCount) || 0,
+        'Số Lượng Lẻ': Number(item.extraCount) || 0,
+        'Tổng Bản In': copies,
+        'Đơn Giá (đ)': Number(item.unitPrice) || 380,
+        'Thành Tiền (đ)': amount,
+        'Đã Thanh Toán': item.isPaid ? 'ĐÃ THU' : 'CHƯA THU',
+        'Ghi Chú': item.note || '',
+        'Cập Nhật Lúc': new Date().toLocaleString('vi-VN')
+      };
+    });
+    const wsBilling = XLSX.utils.json_to_sheet(billingData.length > 0 ? billingData : [{ 'Thông báo': 'Chưa có đơn photo nào' }]);
+    XLSX.utils.book_append_sheet(wb, wsBilling, 'BangTinhTien');
+
+    // 2. Sheet: NoCacLop (Danh sách lớp nợ)
+    const debts = weeklyDebts[currentWeek] || classDebts || {};
+    const debtEntries = Object.keys(debts).filter(c => (debts[c]?.amount || 0) > 0).map((className, idx) => ({
       'STT': idx + 1,
-      'Tên Giáo Viên': item.teacherName,
-      'Lớp': item.className,
-      'Môn Học / Nội Dung': item.subject,
-      'Sĩ Số': item.studentCount,
-      'Số Lượng Lẻ': item.extraCount,
-      'Tổng Bản In': Number(item.studentCount) + Number(item.extraCount),
-      'Đơn Giá (VNĐ)': item.unitPrice,
-      'Thành Tiền (VNĐ)': item.amount,
-      'Ghi Chú': item.note || ''
+      'Tuần': currentWeek,
+      'Lớp': className,
+      'Số Tiền Nợ / Thiếu (đ)': Number(debts[className].amount) || 0,
+      'Lý Do / Ghi Chú Nợ': debts[className].note || '',
+      'Cập Nhật Lúc': new Date().toLocaleString('vi-VN')
     }));
+    const wsDebts = XLSX.utils.json_to_sheet(debtEntries.length > 0 ? debtEntries : [{ 'Thông báo': 'Không có lớp nào nợ/thiếu' }]);
+    XLSX.utils.book_append_sheet(wb, wsDebts, 'NoCacLop');
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'BangTinhTienPhoto');
-    XLSX.writeFile(workbook, `Bang_Tinh_Tien_Photo_${new Date().toISOString().split('T')[0]}.xlsx`);
+    // 3. Sheet: SoQuyThuChi
+    const wsCashflow = XLSX.utils.json_to_sheet(cashflow.length > 0 ? cashflow : [{ 'Thông báo': 'Chưa có giao dịch thu chi nào' }]);
+    XLSX.utils.book_append_sheet(wb, wsCashflow, 'SoQuyThuChi');
+
+    // 4. Sheet: TongHopDoanhThu
+    const weekMap = {};
+    billingItems.forEach(item => {
+      const w = item.week || currentWeek;
+      if (!weekMap[w]) weekMap[w] = { classes: new Set(), copies: 0, photoAmount: 0 };
+      const copies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+      weekMap[w].copies += copies;
+      weekMap[w].photoAmount += Number(item.amount) || (copies * (Number(item.unitPrice) || 380));
+      if (item.className) weekMap[w].classes.add(item.className);
+    });
+    const summaryData = Object.keys(weekMap).map((w, idx) => ({
+      'STT': idx + 1,
+      'Tuần Làm Việc': w,
+      'Tổng Số Lớp Photo': weekMap[w].classes.size,
+      'Tổng Số Bản In': weekMap[w].copies,
+      'Tổng Tiền Photo (đ)': weekMap[w].photoAmount,
+      'Cập Nhật Lúc': new Date().toLocaleString('vi-VN')
+    }));
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData.length > 0 ? summaryData : [{ 'Thông báo': 'Chưa có dữ liệu tổng hợp' }]);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'TongHopDoanhThu');
+
+    XLSX.writeFile(wb, `CSDL_PHOTO_${currentWeek}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Helper: Mở nhanh file Google Sheet CSDL trên Google Drive
@@ -911,6 +954,20 @@ export const AppProvider = ({ children }) => {
       const data = await res.json();
       if (data.success) {
         const timeStr = new Date().toLocaleTimeString('vi-VN');
+
+        if (data.isLocked) {
+          setLocalExcelStatus({
+            status: 'warning',
+            lastSaved: timeStr,
+            filePath: data.filePath || 'e:\\APP_PHOTO\\CSDL_PHOTO_LOCAL_DONG_BO.xlsx',
+            message: `⚠️ Excel đang mở: Đã lưu vào ${data.fileName}`
+          });
+          if (showNotification) {
+            alert(`⚠️ CHÚ Ý: File Excel CSDL_PHOTO_LOCAL.xlsx đang được MỞ trong phần mềm Microsoft Excel trên máy tính!\n\nWindows đang khóa file không cho ghi đè trực tiếp.\n👉 Dữ liệu đã được lưu an toàn vào file: ${data.filePath}\n👉 Để cập nhật vào file chính CSDL_PHOTO_LOCAL.xlsx, bạn chỉ cần ĐÓNG/TẮT CỬA SỔ PHẦN MỀM EXCEL lại, sau đó bấm Lưu lại!`);
+          }
+          return true;
+        }
+
         setLocalExcelStatus({
           status: 'saved',
           lastSaved: timeStr,

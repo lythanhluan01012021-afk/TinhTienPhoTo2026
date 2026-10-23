@@ -31,7 +31,13 @@ function localExcelStoragePlugin() {
         // GET: Đọc dữ liệu từ file Excel CSDL Cục Bộ
         if (req.method === 'GET') {
           try {
-            if (!fs.existsSync(EXCEL_PATH)) {
+            let targetFile = EXCEL_PATH;
+            if (!fs.existsSync(targetFile)) {
+              const syncPath = path.resolve(__dirname, 'CSDL_PHOTO_LOCAL_DONG_BO.xlsx');
+              if (fs.existsSync(syncPath)) targetFile = syncPath;
+            }
+
+            if (!fs.existsSync(targetFile)) {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ 
                 success: false, 
@@ -40,8 +46,8 @@ function localExcelStoragePlugin() {
               }));
             }
 
-            const stats = fs.statSync(EXCEL_PATH);
-            const fileBuf = fs.readFileSync(EXCEL_PATH);
+            const stats = fs.statSync(targetFile);
+            const fileBuf = fs.readFileSync(targetFile);
             const wb = xlsxLib.read(fileBuf, { type: 'buffer' });
             
             // Đọc các sheets
@@ -93,7 +99,7 @@ function localExcelStoragePlugin() {
             return res.end(JSON.stringify({
               success: true,
               exists: true,
-              filePath: EXCEL_PATH,
+              filePath: targetFile,
               lastModified: stats.mtime.toISOString(),
               data: {
                 billingItems,
@@ -201,18 +207,39 @@ function localExcelStoragePlugin() {
 
               // Ghi trực tiếp ra file Excel trong thư mục dự án
               const fileBuf = xlsxLib.write(wb, { type: 'buffer', bookType: 'xlsx' });
-              fs.writeFileSync(EXCEL_PATH, fileBuf);
+              
+              // Luôn lưu file đồng bộ song song dự phòng
+              const syncPath = path.resolve(__dirname, 'CSDL_PHOTO_LOCAL_DONG_BO.xlsx');
+              try {
+                fs.writeFileSync(syncPath, fileBuf);
+              } catch (e) {}
+
+              // Thử ghi vào file chính CSDL_PHOTO_LOCAL.xlsx
+              let isLocked = false;
+              try {
+                fs.writeFileSync(EXCEL_PATH, fileBuf);
+              } catch (err) {
+                if (err.code === 'EBUSY' || err.code === 'EPERM') {
+                  isLocked = true;
+                  console.warn('File CSDL_PHOTO_LOCAL.xlsx đang mở trong Microsoft Excel nên Windows tạm khóa:', err.message);
+                } else {
+                  throw err;
+                }
+              }
 
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ 
                 success: true, 
-                filePath: EXCEL_PATH, 
-                fileName: 'CSDL_PHOTO_LOCAL.xlsx',
+                isLocked,
+                filePath: isLocked ? syncPath : EXCEL_PATH, 
+                fileName: isLocked ? 'CSDL_PHOTO_LOCAL_DONG_BO.xlsx' : 'CSDL_PHOTO_LOCAL.xlsx',
                 savedAt: new Date().toISOString(),
                 rowsCount: billingData.length,
                 debtsCount: debtEntries.length,
                 cashflowCount: cashflowData.length,
-                message: `Đã lưu thành công vào file Excel: ${EXCEL_PATH}`
+                message: isLocked 
+                  ? '⚠️ File CSDL_PHOTO_LOCAL.xlsx đang được mở trong phần mềm Microsoft Excel! Dữ liệu đã lưu an toàn vào CSDL_PHOTO_LOCAL_DONG_BO.xlsx. Vui lòng đóng cửa sổ Excel để hệ thống tự động lưu vào file chính!'
+                  : `Đã lưu thành công vào file Excel: ${EXCEL_PATH}`
               }));
             } catch (err) {
               console.error('Lỗi khi ghi file Excel cục bộ:', err);
@@ -239,10 +266,16 @@ function localExcelStoragePlugin() {
         }
 
         if (req.method === 'POST') {
-          if (fs.existsSync(EXCEL_PATH)) {
-            exec(`start "" "${EXCEL_PATH}"`);
+          let openTarget = EXCEL_PATH;
+          if (!fs.existsSync(openTarget)) {
+            const syncPath = path.resolve(__dirname, 'CSDL_PHOTO_LOCAL_DONG_BO.xlsx');
+            if (fs.existsSync(syncPath)) openTarget = syncPath;
+          }
+
+          if (fs.existsSync(openTarget)) {
+            exec(`start "" "${openTarget}"`);
             res.setHeader('Content-Type', 'application/json');
-            return res.end(JSON.stringify({ success: true, message: `Đã mở file ${EXCEL_PATH}` }));
+            return res.end(JSON.stringify({ success: true, message: `Đã mở file ${openTarget}` }));
           } else {
             res.statusCode = 404;
             res.setHeader('Content-Type', 'application/json');

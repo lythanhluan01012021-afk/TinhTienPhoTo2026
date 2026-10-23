@@ -10,7 +10,8 @@ import {
   FolderOpen,
   HardDrive,
   Wifi,
-  WifiOff
+  WifiOff,
+  Download
 } from 'lucide-react';
 import { ReconciliationModal } from './ReconciliationModal';
 
@@ -38,7 +39,8 @@ export const ExcelGrid = () => {
     localExcelStatus,
     isOnline,
     saveToLocalExcelFile,
-    openLocalExcelFile
+    openLocalExcelFile,
+    handleExportExcel
   } = useApp();
 
   const [isReconciliationModalOpen, setIsReconciliationModalOpen] = useState(false);
@@ -231,6 +233,29 @@ export const ExcelGrid = () => {
           >
             <FolderOpen size={14} color="#059669" />
             <span>Mở Excel Máy</span>
+          </button>
+
+          {/* Nút Tải CSDL Excel (.xlsx) trực tiếp về máy */}
+          <button 
+            type="button"
+            onClick={handleExportExcel}
+            className="neu-btn"
+            style={{ 
+              fontSize: '13px', 
+              padding: '6px 13px', 
+              color: '#1e40af', 
+              background: '#eff6ff', 
+              border: '1.5px solid #93c5fd', 
+              fontWeight: '700', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+            title="Tải toàn bộ CSDL 4 sheet chuẩn (Bảng tính, Nợ các lớp, Sổ quỹ, Doanh thu) thành file Excel .xlsx tải về máy"
+          >
+            <Download size={14} color="#2563eb" />
+            <span>Tải Excel ({currentWeek})</span>
           </button>
 
           {/* Bộ chọn Tuần & Nút Thêm mới tuần trực tiếp trên Bảng Tính */}
