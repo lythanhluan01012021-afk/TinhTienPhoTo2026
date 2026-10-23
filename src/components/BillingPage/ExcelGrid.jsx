@@ -432,18 +432,18 @@ export const ExcelGrid = () => {
             </button>
           </div>
         ) : (
-          <table className="excel-table">
+          <table className="excel-table" style={{ tableLayout: 'auto', width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ width: '45px' }}>STT</th>
-                <th style={{ minWidth: '185px', width: 'auto' }}>Tên Giáo Viên</th>
-                <th style={{ width: '90px' }}>Lớp</th>
-                <th>Môn Học / Nội Dung Tài Liệu</th>
-                <th style={{ width: '85px' }}>Sĩ Số</th>
-                <th style={{ width: '95px' }}>Số Lượng Lẻ</th>
-                <th style={{ width: '95px' }}>Đơn Giá (đ)</th>
-                <th style={{ width: '130px' }}>Thành Tiền (đ)</th>
-                <th style={{ width: '75px', textAlign: 'center' }}>Thao Tác</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>STT</th>
+                <th style={{ width: 'auto', whiteSpace: 'nowrap' }}>Tên Giáo Viên</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Lớp</th>
+                <th style={{ width: 'auto', whiteSpace: 'nowrap' }}>Tài liệu</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Sĩ Số</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Số Lượng Lẻ</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Đơn Giá (đ)</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Thành Tiền (đ)</th>
+                <th style={{ width: '1%', textAlign: 'center', whiteSpace: 'nowrap' }}>Thao Tác</th>
               </tr>
             </thead>
             <tbody>
@@ -463,51 +463,57 @@ export const ExcelGrid = () => {
                     }}
                   >
                     {/* STT */}
-                    <td style={{ textAlign: 'center', fontWeight: '700', color: isHighlighted ? '#1d4ed8' : 'var(--text-sub)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: '700', whiteSpace: 'nowrap', color: isHighlighted ? '#1d4ed8' : 'var(--text-sub)' }}>
                       {index + 1}
                     </td>
 
                     {/* Tên GV */}
-                    <td style={{ minWidth: '185px', width: 'auto' }}>
+                    <td style={{ width: 'auto', whiteSpace: 'nowrap' }}>
                       <input 
                         id={`input-teacher-${item.id}`}
                         type="text"
                         className="excel-cell-input"
                         value={item.teacherName}
+                        size={Math.max(18, (item.teacherName || '').length + 2)}
                         onChange={(e) => updateBillingItem(item.id, 'teacherName', e.target.value)}
                         placeholder="Tên GV / Học sinh / Người in..."
-                        style={{ fontWeight: '600', width: '100%' }}
+                        style={{ fontWeight: '600', width: '100%', minWidth: `${Math.max(16, (item.teacherName || '').length + 2)}ch` }}
                         title={item.teacherName}
                       />
                     </td>
 
                     {/* Lớp */}
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <input 
                         id={`input-class-${item.id}`}
                         type="text"
                         className="excel-cell-input"
                         value={item.className}
+                        size={Math.max(6, (item.className || '').length + 2)}
                         onChange={(e) => updateBillingItem(item.id, 'className', e.target.value)}
                         placeholder="Lớp..."
-                        style={{ textAlign: 'center', fontWeight: '700', color: 'var(--color-primary)' }}
+                        style={{ textAlign: 'center', fontWeight: '700', color: 'var(--color-primary)', width: '100%', minWidth: `${Math.max(6, (item.className || '').length + 2)}ch` }}
+                        title={item.className}
                       />
                     </td>
 
-                    {/* Môn Học / Nội Dung */}
-                    <td>
+                    {/* Tài liệu */}
+                    <td style={{ width: 'auto', whiteSpace: 'nowrap' }}>
                       <input 
                         id={`input-subject-${item.id}`}
                         type="text"
                         className="excel-cell-input"
                         value={item.subject}
+                        size={Math.max(14, (item.subject || '').length + 2)}
                         onChange={(e) => updateBillingItem(item.id, 'subject', e.target.value)}
-                        placeholder="Nội dung photo / tài liệu..."
+                        placeholder="Tài liệu..."
+                        style={{ width: '100%', minWidth: `${Math.max(12, (item.subject || '').length + 2)}ch` }}
+                        title={item.subject}
                       />
                     </td>
 
                     {/* Sĩ Số */}
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <input 
                         id={`input-student-${item.id}`}
                         type="number"
@@ -516,12 +522,12 @@ export const ExcelGrid = () => {
                         value={item.studentCount}
                         onChange={(e) => updateBillingItem(item.id, 'studentCount', e.target.value)}
                         placeholder="0"
-                        style={{ textAlign: 'right', fontWeight: '600' }}
+                        style={{ textAlign: 'right', fontWeight: '600', width: '100%', minWidth: `${Math.max(6, String(item.studentCount ?? '').length + 4)}ch` }}
                       />
                     </td>
 
                     {/* Số Lượng Lẻ */}
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <input 
                         id={`input-extra-${item.id}`}
                         type="number"
@@ -530,12 +536,12 @@ export const ExcelGrid = () => {
                         value={item.extraCount}
                         onChange={(e) => updateBillingItem(item.id, 'extraCount', e.target.value)}
                         placeholder="0"
-                        style={{ textAlign: 'right', fontWeight: '600', color: '#b45309' }}
+                        style={{ textAlign: 'right', fontWeight: '600', color: '#b45309', width: '100%', minWidth: `${Math.max(6, String(item.extraCount ?? '').length + 4)}ch` }}
                       />
                     </td>
 
-                    {/* Đơn Giá - Giữ bước nhảy 380, click lần 2 là 760, lần 3 là 1140..., không popup */}
-                    <td style={{ textAlign: 'right' }}>
+                    {/* Đơn Giá - Giữ bước nhảy 380, click lần 2 là 760, lần 3 là 1.140..., không popup */}
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3px' }}>
                         <button
                           type="button"
@@ -560,15 +566,33 @@ export const ExcelGrid = () => {
                         </button>
                         <input 
                           id={`input-price-${item.id}`}
-                          type="number"
-                          min="0"
-                          step="380"
+                          type="text"
+                          inputMode="numeric"
                           className="excel-cell-input"
-                          value={item.unitPrice}
-                          onChange={(e) => updateBillingItem(item.id, 'unitPrice', e.target.value)}
-                          style={{ textAlign: 'right', fontWeight: 'bold', width: '65px' }}
+                          value={item.unitPrice !== '' && item.unitPrice !== null && item.unitPrice !== undefined ? Number(item.unitPrice).toLocaleString('vi-VN') : ''}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^\d]/g, '');
+                            updateBillingItem(item.id, 'unitPrice', raw === '' ? '' : Number(raw));
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              const cur = Number(item.unitPrice) || 0;
+                              updateBillingItem(item.id, 'unitPrice', cur <= 0 ? 380 : cur + 380);
+                            } else if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              const cur = Number(item.unitPrice) || 380;
+                              updateBillingItem(item.id, 'unitPrice', Math.max(0, cur - 380));
+                            }
+                          }}
+                          style={{
+                            textAlign: 'right',
+                            fontWeight: 'bold',
+                            width: `${Math.max(6, (item.unitPrice !== '' && item.unitPrice !== null && item.unitPrice !== undefined ? Number(item.unitPrice).toLocaleString('vi-VN') : '').length + 2)}ch`,
+                            minWidth: '58px'
+                          }}
                           placeholder="380"
-                          title="Bước nhảy 380đ: bấm [+] hoặc mũi tên để nhảy 760đ, 1140đ, 1520đ..."
+                          title="Bước nhảy 380đ: bấm [+] hoặc mũi tên để nhảy 760đ, 1.140đ, 1.520đ..."
                         />
                         <button
                           type="button"
@@ -577,7 +601,7 @@ export const ExcelGrid = () => {
                             const next = cur <= 0 ? 380 : cur + 380;
                             updateBillingItem(item.id, 'unitPrice', next);
                           }}
-                          title="Tăng 380đ (click lần 2: 760đ, lần 3: 1140đ, tiếp theo...)"
+                          title="Tăng 380đ (click lần 2: 760đ, lần 3: 1.140đ, tiếp theo...)"
                           style={{
                             padding: '1px 5px',
                             fontSize: '11px',
@@ -595,7 +619,7 @@ export const ExcelGrid = () => {
                     </td>
 
                     {/* Thành Tiền (Tự Động) */}
-                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-primary)', fontSize: '15px' }}>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-primary)', fontSize: '15px', whiteSpace: 'nowrap' }}>
                       {formatVND(item.amount)}
                     </td>
 

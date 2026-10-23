@@ -2160,12 +2160,14 @@ function cleanDuplicates() {
                 Đơn Giá Photo Mặc Định (VNĐ / trang):
               </label>
               <input 
-                type="number"
-                step="380"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 className="neu-input"
-                value={settings.defaultUnitPrice}
-                onChange={(e) => setSettings({ ...settings, defaultUnitPrice: Number(e.target.value) || 380 })}
+                value={settings.defaultUnitPrice !== '' && settings.defaultUnitPrice !== null && settings.defaultUnitPrice !== undefined ? Number(settings.defaultUnitPrice).toLocaleString('vi-VN') : ''}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '');
+                  setSettings({ ...settings, defaultUnitPrice: raw === '' ? 0 : Number(raw) });
+                }}
               />
             </div>
             <div style={{ flex: '1' }}>

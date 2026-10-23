@@ -22,7 +22,7 @@ const MainLayout = () => {
           <div 
             style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'minmax(300px, 3.2fr) minmax(600px, 6.8fr)', 
+              gridTemplateColumns: 'minmax(270px, 2.5fr) minmax(680px, 7.5fr)', 
               gap: '20px',
               flex: '1',
               alignItems: 'stretch'
