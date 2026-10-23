@@ -75,21 +75,26 @@ export const PrintViewA4 = () => {
   const [printTemplate, setPrintTemplate] = useState('class_invoice'); // 'class_invoice' | 'school_summary'
   const [showSignatures, setShowSignatures] = useState(false); // Mặc định tắt để tiết kiệm giấy in theo yêu cầu
   const [compactMode, setCompactMode] = useState(true); // Mặc định gom nhiều lớp trên cùng 1 trang A4 để tiết kiệm giấy tối đa
+  const [includeSummarySheet, setIncludeSummarySheet] = useState(true); // Kèm Bảng Kê Tổng Hợp Chi Tiết Các Lớp để kiểm soát thu tiền & đối chiếu
+  const [showClassDetailsDrawer, setShowClassDetailsDrawer] = useState(false); // Xem nhanh bảng tổng hợp chi tiết từng lớp trên modal
+
+  // Danh sách các dòng photo thuộc tuần đang chọn
+  const currentWeekItems = useMemo(() => {
+    return billingItems.filter(i => (i.week || currentWeek) === currentWeek);
+  }, [billingItems, currentWeek]);
 
   // Danh sách các lớp có đơn photo hoặc có nợ trong tuần đang chọn
   const availableClasses = useMemo(() => {
-    const currentWeekItems = billingItems.filter(i => (i.week || currentWeek) === currentWeek);
     const list = Array.from(new Set([
       ...currentWeekItems.map(i => i.className).filter(Boolean),
       ...Object.keys(classDebts || {}).filter(c => (classDebts[c]?.amount || 0) > 0)
     ]));
     return list.sort();
-  }, [billingItems, classDebts, currentWeek]);
+  }, [currentWeekItems, classDebts]);
 
   // Gom nhóm dữ liệu theo lớp cho tuần đang chọn
   const classGroups = useMemo(() => {
     const map = {};
-    const currentWeekItems = billingItems.filter(i => (i.week || currentWeek) === currentWeek);
     currentWeekItems.forEach(item => {
       const cls = item.className || 'Khác';
       if (!map[cls]) {
@@ -124,20 +129,54 @@ export const PrintViewA4 = () => {
       return Object.values(map).filter(g => g.className === printClassFilter);
     }
     return Object.values(map).sort((a, b) => a.className.localeCompare(b.className));
-  }, [billingItems, printClassFilter, classDebts, currentWeek]);
+  }, [currentWeekItems, printClassFilter, classDebts]);
 
   // Tổng cộng toàn trường cho tuần đang chọn
   const grandTotal = useMemo(() => {
     let copies = 0;
     let amount = 0;
-    const currentWeekItems = billingItems.filter(i => (i.week || currentWeek) === currentWeek);
     currentWeekItems.forEach(item => {
       const c = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
       copies += c;
       amount += c * (Number(item.unitPrice) || 0);
     });
     return { copies, amount };
-  }, [billingItems, currentWeek]);
+  }, [currentWeekItems]);
+
+  // Grand Summary toàn diện dùng cho đối chiếu & in ấn (Đối chiếu chính xác 100% với Bảng Nhập Liệu và Nút Rà Soát)
+  const grandSummary = useMemo(() => {
+    let totalCopies = 0;
+    let photoAmount = 0;
+    let debtAmount = 0;
+
+    classGroups.forEach(g => {
+      totalCopies += g.totalCopies;
+      photoAmount += g.totalAmount;
+      const debt = Number(classDebts?.[g.className]?.amount) || 0;
+      debtAmount += debt;
+    });
+
+    const totalDue = photoAmount + debtAmount;
+
+    // Tính tổng ở bảng nhập liệu để đối chiếu
+    const gridTotalAmount = currentWeekItems.reduce((sum, item) => {
+      const copies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
+      return sum + copies * (Number(item.unitPrice) || 0);
+    }, 0);
+
+    const isMatched = Math.abs(photoAmount - gridTotalAmount) < 1;
+
+    return {
+      classesCount: classGroups.length,
+      totalCopies,
+      photoAmount,
+      debtAmount,
+      totalDue,
+      gridTotalAmount,
+      isMatched,
+      diff: photoAmount - gridTotalAmount
+    };
+  }, [classGroups, currentWeekItems, classDebts]);
 
   const formatVND = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v || 0);
 
@@ -289,6 +328,34 @@ export const PrintViewA4 = () => {
                       alignItems: 'center', 
                       gap: '6px', 
                       fontSize: '13px', 
+                      fontWeight: '700',
+                      cursor: 'pointer', 
+                      userSelect: 'none', 
+                      color: '#1e40af',
+                      background: '#eff6ff',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #93c5fd'
+                    }}
+                    title="Kèm Bảng Kê Tổng Hợp Chi Tiết Từng Lớp ở đầu bản in để đối chiếu và kiểm soát thu tiền"
+                  >
+                    <input 
+                      type="checkbox" 
+                      checked={includeSummarySheet} 
+                      onChange={(e) => setIncludeSummarySheet(e.target.checked)} 
+                      style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                    />
+                    <span>Kèm Bảng Kê Tổng Hợp Các Lớp</span>
+                  </label>
+                )}
+
+                {printTemplate === 'class_invoice' && printClassFilter === 'all' && (
+                  <label 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      fontSize: '13px', 
                       fontWeight: '600',
                       cursor: 'pointer', 
                       userSelect: 'none', 
@@ -348,6 +415,154 @@ export const PrintViewA4 = () => {
               </div>
             </div>
 
+            {/* BĂNG ĐỐI CHIẾU & KIỂM SOÁT DOANH THU CÁC LỚP TRÊN MODAL */}
+            <div 
+              style={{
+                padding: '10px 24px',
+                background: '#f8fafc',
+                borderBottom: '1.5px solid #cbd5e1',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Tổng số lớp: </span>
+                  <b style={{ color: '#0f172a' }}>{grandSummary.classesCount} Lớp</b>
+                </div>
+                <div style={{ fontSize: '13px', borderLeft: '1px solid #cbd5e1', paddingLeft: '14px' }}>
+                  <span style={{ color: '#64748b' }}>Tổng bản in: </span>
+                  <b style={{ color: '#0f172a' }}>{grandSummary.totalCopies.toLocaleString('vi-VN')} bản</b>
+                </div>
+                <div style={{ fontSize: '13px', borderLeft: '1px solid #cbd5e1', paddingLeft: '14px' }}>
+                  <span style={{ color: '#64748b' }}>Tiền photo tuần này: </span>
+                  <b style={{ color: '#1d4ed8', fontSize: '14px' }}>{formatVND(grandSummary.photoAmount)}</b>
+                </div>
+                {grandSummary.debtAmount > 0 && (
+                  <div style={{ fontSize: '13px', borderLeft: '1px solid #cbd5e1', paddingLeft: '14px' }}>
+                    <span style={{ color: '#64748b' }}>Nợ cũ: </span>
+                    <b style={{ color: '#b91c1c' }}>+{formatVND(grandSummary.debtAmount)}</b>
+                  </div>
+                )}
+                <div style={{ fontSize: '13.5px', borderLeft: '1px solid #cbd5e1', paddingLeft: '14px' }}>
+                  <span style={{ color: '#64748b' }}>TỔNG CỘNG THU (BILL): </span>
+                  <b style={{ color: '#15803d', fontSize: '15px' }}>{formatVND(grandSummary.totalDue)}</b>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {grandSummary.isMatched ? (
+                  <span style={{ 
+                    fontSize: '12px', 
+                    fontWeight: 'bold', 
+                    color: '#15803d', 
+                    background: '#dcfce7', 
+                    border: '1px solid #86efac', 
+                    padding: '4px 10px', 
+                    borderRadius: '20px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}>
+                    <CheckCircle2 size={14} color="#16a34a" />
+                    <span>Khớp 100% Bảng Nhập Liệu & Rà Soát</span>
+                  </span>
+                ) : (
+                  <span style={{ 
+                    fontSize: '12px', 
+                    fontWeight: 'bold', 
+                    color: '#b91c1c', 
+                    background: '#fee2e2', 
+                    border: '1px solid #fca5a5', 
+                    padding: '4px 10px', 
+                    borderRadius: '20px'
+                  }}>
+                    ⚠️ Lệch {formatVND(Math.abs(grandSummary.diff))} so với Bảng Nhập Liệu
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowClassDetailsDrawer(!showClassDetailsDrawer)}
+                  style={{
+                    background: showClassDetailsDrawer ? '#1d4ed8' : '#ffffff',
+                    color: showClassDetailsDrawer ? '#ffffff' : '#1d4ed8',
+                    border: '1.5px solid #93c5fd',
+                    borderRadius: '8px',
+                    padding: '5px 12px',
+                    fontSize: '12.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  <FileText size={14} />
+                  <span>{showClassDetailsDrawer ? 'Đóng Bảng Chi Tiết' : 'Xem Bảng Chi Tiết Từng Lớp'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Ngăn kéo xem chi tiết tổng tiền từng lớp */}
+            {showClassDetailsDrawer && (
+              <div style={{
+                background: '#ffffff',
+                borderBottom: '2px solid #93c5fd',
+                maxHeight: '260px',
+                overflowY: 'auto',
+                padding: '12px 24px',
+                boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.05)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <b style={{ fontSize: '13.5px', color: '#1e3a8a' }}>
+                    DANH SÁCH CHI TIẾT TỔNG THÀNH TIỀN TỪNG LỚP ({grandSummary.classesCount} LỚP):
+                  </b>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>
+                    Tổng cộng: <b style={{ color: '#15803d' }}>{formatVND(grandSummary.totalDue)}</b>
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                  {classGroups.map(group => {
+                    const debt = Number(classDebts?.[group.className]?.amount) || 0;
+                    const total = group.totalAmount + debt;
+                    return (
+                      <div 
+                        key={group.className}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                          background: '#f8fafc',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div>
+                          <b style={{ fontSize: '13px', color: '#1e40af' }}>Lớp {group.className}</b>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {group.totalCopies} bản • {group.items.length} đợt
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <b style={{ fontSize: '13px', color: '#0f172a' }}>{formatVND(total)}</b>
+                          {debt > 0 && (
+                            <div style={{ fontSize: '10px', color: '#b91c1c' }}>
+                              (nợ: +{formatVND(debt)})
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* A4 Paper Simulation Preview Box */}
             <div 
               style={{
@@ -377,6 +592,99 @@ export const PrintViewA4 = () => {
                 {printTemplate === 'class_invoice' ? (
                   // TEMPLATE 1: PHIẾU BÀN GIAO & THANH TOÁN THEO LỚP
                   <div>
+                    {/* BẢNG TỔNG HỢP CHI TIẾT TẤT CẢ CÁC LỚP TOÀN TRƯỜNG ĐỐI CHIẾU DOANH THU */}
+                    {includeSummarySheet && printClassFilter === 'all' && (
+                      <div 
+                        className="print-page-wrapper print-class-block force-page-break"
+                        style={{ 
+                          marginBottom: '26px',
+                          paddingBottom: '22px',
+                          borderBottom: '2.5px solid #1e3a8a'
+                        }}
+                      >
+                        <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                          <h2 style={{ fontSize: '13.5pt', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 3px 0' }}>
+                            BẢNG KÊ TỔNG HỢP QUYẾT TOÁN TIỀN PHOTO TỪNG LỚP ({currentWeek.toUpperCase()})
+                          </h2>
+                          <div style={{ fontSize: '10pt', fontStyle: 'italic', color: '#374151' }}>
+                            (Bảng kiểm soát đối chiếu doanh thu các lớp • Khớp 100% với Bảng Nhập Liệu & Hệ Thống Rà Soát)
+                          </div>
+                        </div>
+
+                        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f3f4f6' }}>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '32px' }}>STT</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '60px' }}>Lớp</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '140px' }}>GV Chủ Nhiệm</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '45px' }}>Sĩ số</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '45px' }}>Số đợt</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '65px' }}>Tổng bản</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '95px' }}>Tiền Tuần Này</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '85px' }}>Nợ Cũ</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '110px' }}>TỔNG BILL (đ)</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 5px', width: '90px' }}>Ký Nộp / Ghi Chú</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classGroups.map((group, idx) => {
+                              const homeroom = getHomeroomTeacher(group.className);
+                              const siso = getStudentCountForClass(group.className);
+                              const debtAmount = Number(classDebts?.[group.className]?.amount) || 0;
+                              const totalClassDue = group.totalAmount + debtAmount;
+                              return (
+                                <tr key={group.className}>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center' }}>{idx + 1}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center', fontWeight: 'bold' }}>{group.className}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px' }}>{homeroom}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{siso}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center' }}>{group.items.length}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{group.totalCopies.toLocaleString('vi-VN')}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{formatVND(group.totalAmount)}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', color: debtAmount > 0 ? '#b91c1c' : '#555' }}>
+                                    {debtAmount > 0 ? formatVND(debtAmount) : '-'}
+                                  </td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', fontWeight: 'bold', fontSize: '10pt' }}>
+                                    {formatVND(totalClassDue)}
+                                  </td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 5px' }}></td>
+                                </tr>
+                              );
+                            })}
+
+                            {/* Dòng TỔNG CỘNG TOÀN TRƯỜNG */}
+                            <tr style={{ backgroundColor: '#e5e7eb', fontWeight: 'bold', fontSize: '10pt' }}>
+                              <td colSpan="5" style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', textTransform: 'uppercase' }}>
+                                TỔNG CỘNG ({grandSummary.classesCount} LỚP):
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>
+                                {grandSummary.totalCopies.toLocaleString('vi-VN')} bản
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '10.5pt' }}>
+                                {formatVND(grandSummary.photoAmount)}
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', color: grandSummary.debtAmount > 0 ? '#b91c1c' : '#555' }}>
+                                {grandSummary.debtAmount > 0 ? formatVND(grandSummary.debtAmount) : '0 đ'}
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '11pt', color: '#1e3a8a' }}>
+                                {formatVND(grandSummary.totalDue)}
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
+                            </tr>
+                          </tbody>
+                        </table>
+
+                        <div style={{ marginTop: '8px', fontSize: '9.5pt', fontStyle: 'italic', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            Tổng tiền quyết toán bằng chữ: <b>{numberToVietnameseWords(grandSummary.totalDue)}</b>
+                          </div>
+                          <div style={{ fontWeight: 'bold', color: '#047857' }}>
+                            ✓ Đã đối chiếu khớp 100% với Bảng Nhập Liệu & Rà Soát
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {classGroups.map((group, gIdx) => {
                       const homeroom = getHomeroomTeacher(group.className);
                       const siso = getStudentCountForClass(group.className);
@@ -538,7 +846,7 @@ export const PrintViewA4 = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {billingItems.map((item, idx) => {
+                        {currentWeekItems.map((item, idx) => {
                           const totalCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
                           return (
                             <tr key={idx} style={{ pageBreakInside: 'avoid' }}>
@@ -632,6 +940,99 @@ export const PrintViewA4 = () => {
       <div className="print-only-container">
         {printTemplate === 'class_invoice' ? (
           <div>
+            {/* BẢNG TỔNG HỢP CHI TIẾT TẤT CẢ CÁC LỚP TOÀN TRƯỜNG KHI IN */}
+            {includeSummarySheet && printClassFilter === 'all' && (
+              <div 
+                className="print-page-wrapper print-class-block force-page-break"
+                style={{ 
+                  marginBottom: '26px',
+                  paddingBottom: '22px',
+                  borderBottom: '2.5px solid #000000'
+                }}
+              >
+                <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                  <h2 style={{ fontSize: '13.5pt', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 3px 0' }}>
+                    BẢNG KÊ TỔNG HỢP QUYẾT TOÁN TIỀN PHOTO TỪNG LỚP ({currentWeek.toUpperCase()})
+                  </h2>
+                  <div style={{ fontSize: '10pt', fontStyle: 'italic', color: '#374151' }}>
+                    (Bảng kiểm soát đối chiếu doanh thu các lớp • Khớp 100% với Bảng Nhập Liệu & Hệ Thống Rà Soát)
+                  </div>
+                </div>
+
+                <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f3f4f6' }}>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '32px' }}>STT</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '60px' }}>Lớp</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '140px' }}>GV Chủ Nhiệm</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '45px' }}>Sĩ số</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '45px' }}>Số đợt</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '65px' }}>Tổng bản</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '95px' }}>Tiền Tuần Này</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '85px' }}>Nợ Cũ</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '110px' }}>TỔNG BILL (đ)</th>
+                      <th style={{ border: '1px solid #000', padding: '4px 5px', width: '90px' }}>Ký Nộp / Ghi Chú</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classGroups.map((group, idx) => {
+                      const homeroom = getHomeroomTeacher(group.className);
+                      const siso = getStudentCountForClass(group.className);
+                      const debtAmount = Number(classDebts?.[group.className]?.amount) || 0;
+                      const totalClassDue = group.totalAmount + debtAmount;
+                      return (
+                        <tr key={group.className}>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center' }}>{idx + 1}</td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center', fontWeight: 'bold' }}>{group.className}</td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px' }}>{homeroom}</td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{siso}</td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'center' }}>{group.items.length}</td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{group.totalCopies.toLocaleString('vi-VN')}</td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right' }}>{formatVND(group.totalAmount)}</td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', color: debtAmount > 0 ? '#b91c1c' : '#555' }}>
+                            {debtAmount > 0 ? formatVND(debtAmount) : '-'}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'right', fontWeight: 'bold', fontSize: '10pt' }}>
+                            {formatVND(totalClassDue)}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '4px 5px' }}></td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Dòng TỔNG CỘNG TOÀN TRƯỜNG */}
+                    <tr style={{ backgroundColor: '#e5e7eb', fontWeight: 'bold', fontSize: '10pt' }}>
+                      <td colSpan="5" style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', textTransform: 'uppercase' }}>
+                        TỔNG CỘNG ({grandSummary.classesCount} LỚP):
+                      </td>
+                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>
+                        {grandSummary.totalCopies.toLocaleString('vi-VN')} bản
+                      </td>
+                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '10.5pt' }}>
+                        {formatVND(grandSummary.photoAmount)}
+                      </td>
+                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', color: grandSummary.debtAmount > 0 ? '#b91c1c' : '#555' }}>
+                        {grandSummary.debtAmount > 0 ? formatVND(grandSummary.debtAmount) : '0 đ'}
+                      </td>
+                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontSize: '11pt', color: '#1e3a8a' }}>
+                        {formatVND(grandSummary.totalDue)}
+                      </td>
+                      <td style={{ border: '1px solid #000', padding: '6px' }}></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div style={{ marginTop: '8px', fontSize: '9.5pt', fontStyle: 'italic', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    Tổng tiền quyết toán bằng chữ: <b>{numberToVietnameseWords(grandSummary.totalDue)}</b>
+                  </div>
+                  <div style={{ fontWeight: 'bold', color: '#047857' }}>
+                    ✓ Đã đối chiếu khớp 100% với Bảng Nhập Liệu & Rà Soát
+                  </div>
+                </div>
+              </div>
+            )}
+
             {classGroups.map((group, gIdx) => {
               const homeroom = getHomeroomTeacher(group.className);
               const siso = getStudentCountForClass(group.className);
@@ -785,7 +1186,7 @@ export const PrintViewA4 = () => {
                 </tr>
               </thead>
               <tbody>
-                {billingItems.map((item, idx) => {
+                {currentWeekItems.map((item, idx) => {
                   const totalCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
                   return (
                     <tr key={idx}>

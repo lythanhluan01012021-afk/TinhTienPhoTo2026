@@ -177,6 +177,7 @@ export const AppProvider = ({ children }) => {
   const [syncStatus, setSyncStatus] = useState({ status: 'idle', message: '' });
   const [isDebtsSynced, setIsDebtsSynced] = useState(true);
   const [isCashflowSynced, setIsCashflowSynced] = useState(true);
+  const [focusedItemId, setFocusedItemId] = useState(null); // ID dòng cần focus con trỏ chuột khi vừa nạp giáo viên / lớp
 
   // Weekly Billing & Debt Tracking State
   const [availableWeeks, setAvailableWeeks] = useState(() => {
@@ -419,8 +420,10 @@ export const AppProvider = ({ children }) => {
       : (settings.defaultUnitPrice || 380);
     const amount = ((Number(studentCount) || 0) + (Number(extraCount) || 0)) * (Number(unitPrice) || 0);
 
+    const newId = item.id || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+
     const newItem = {
-      id: item.id || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId,
       week: item.week || currentWeek || 'Tuần 1',
       teacherName: item.teacherName || '',
       className: item.className || '',
@@ -436,12 +439,15 @@ export const AppProvider = ({ children }) => {
     };
 
     setBillingItems(prev => [...prev, newItem]);
+    setFocusedItemId(newId);
+    return newId;
   };
 
   // Helper: Thêm 1 dòng trống mới vào bảng tính để nhập thủ công phát sinh (GV dạy thay, học sinh tự in...)
   const handleAddBlankRow = () => {
+    const newId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const newItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId,
       week: currentWeek || 'Tuần 1',
       teacherName: '',
       className: '',
@@ -457,9 +463,11 @@ export const AppProvider = ({ children }) => {
     };
 
     setBillingItems(prev => [...prev, newItem]);
+    setFocusedItemId(newId);
     if (currentTab !== 'billing') {
       setCurrentTab('billing');
     }
+    return newId;
   };
 
   // Helper: Sao chép dòng đã nhập trước đó (hoặc 1 dòng cụ thể) cho dòng tiếp theo
@@ -489,9 +497,10 @@ export const AppProvider = ({ children }) => {
     const unitPrice = Number(sourceItem.unitPrice) || settings.defaultUnitPrice || 380;
     const totalCopies = (Number(studentCount) || 0) + (Number(extraCount) || 0);
 
+    const newId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const duplicatedItem = {
       ...sourceItem,
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId,
       week: currentWeek || sourceItem.week || 'Tuần 1',
       unitPrice: unitPrice,
       amount: totalCopies * unitPrice,
@@ -499,9 +508,11 @@ export const AppProvider = ({ children }) => {
     };
 
     setBillingItems(prev => [...prev, duplicatedItem]);
+    setFocusedItemId(newId);
     if (currentTab !== 'billing') {
       setCurrentTab('billing');
     }
+    return newId;
   };
 
   // Helper: Xuất dữ liệu bảng tính ra file Excel (.xlsx)
@@ -703,12 +714,12 @@ export const AppProvider = ({ children }) => {
   const addBatchClassesForTeacher = (teacher, classAssignments) => {
     if (!classAssignments || classAssignments.length === 0) return;
     
-    const newItems = classAssignments.map(asg => {
+    const newItems = classAssignments.map((asg, idx) => {
       const studentCount = getStudentCountForClass(asg.className);
       const extraCount = 0; // Mặc định số lượng lẻ là 0 theo yêu cầu
-      const unitPrice = settings.defaultUnitPrice;
+      const unitPrice = settings.defaultUnitPrice || 380;
       return {
-        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
         week: currentWeek || 'Tuần 1',
         teacherName: teacher.name,
         className: asg.className,
@@ -725,6 +736,9 @@ export const AppProvider = ({ children }) => {
     });
 
     setBillingItems(prev => [...prev, ...newItems]);
+    if (newItems.length > 0) {
+      setFocusedItemId(newItems[0].id);
+    }
   };
 
   // Update a single field in billing item (auto recalculates Thành Tiền)
@@ -1309,6 +1323,8 @@ export const AppProvider = ({ children }) => {
         totalClassDebts,
         isDebtsSynced,
         isCashflowSynced,
+        focusedItemId,
+        setFocusedItemId,
 
         addBillingItem,
         handleAddBlankRow,

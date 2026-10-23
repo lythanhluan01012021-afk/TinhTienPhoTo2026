@@ -1,12 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   FileSpreadsheet, 
-  Trash2,
-  Plus,
-  CloudUpload,
-  ShieldCheck,
-  Copy
+  Trash2, 
+  Plus, 
+  CloudUpload, 
+  ShieldCheck, 
+  Copy 
 } from 'lucide-react';
 import { ReconciliationModal } from './ReconciliationModal';
 
@@ -28,10 +28,45 @@ export const ExcelGrid = () => {
     handleAddBlankRow,
     duplicateBillingItem,
     syncStatus,
-    syncToGoogleSheets
+    syncToGoogleSheets,
+    focusedItemId,
+    setFocusedItemId
   } = useApp();
 
   const [isReconciliationModalOpen, setIsReconciliationModalOpen] = useState(false);
+
+  // Tự động cuộn và đặt điểm chuột (focus) ngay tại dòng vừa thêm khi chọn GV và Lớp
+  useEffect(() => {
+    if (!focusedItemId) return;
+
+    const timer = setTimeout(() => {
+      const rowEl = document.getElementById(`grid-row-${focusedItemId}`);
+      if (rowEl) {
+        rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Đặt điểm chuột vào ô Môn Học / Nội dung hoặc Tên GV
+        const teacherInput = document.getElementById(`input-teacher-${focusedItemId}`);
+        const subjectInput = document.getElementById(`input-subject-${focusedItemId}`);
+
+        if (teacherInput && (!teacherInput.value || teacherInput.value.trim() === '')) {
+          teacherInput.focus();
+        } else if (subjectInput) {
+          subjectInput.focus();
+          subjectInput.select();
+        }
+      }
+    }, 120);
+
+    // Xóa trạng thái viền xanh highlight sau 2.5 giây
+    const unhighlightTimer = setTimeout(() => {
+      setFocusedItemId(null);
+    }, 2500);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(unhighlightTimer);
+    };
+  }, [focusedItemId, setFocusedItemId]);
 
   // Xử lý thêm tuần mới
   const handleAddNewWeek = () => {
@@ -311,16 +346,27 @@ export const ExcelGrid = () => {
               {displayedItems.map((item, index) => {
                 const totalCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
 
+                const isHighlighted = item.id === focusedItemId;
+
                 return (
-                  <tr key={item.id}>
+                  <tr 
+                    key={item.id}
+                    id={`grid-row-${item.id}`}
+                    style={{
+                      backgroundColor: isHighlighted ? '#eff6ff' : undefined,
+                      boxShadow: isHighlighted ? 'inset 0 0 0 2px #3b82f6' : undefined,
+                      transition: 'background-color 0.35s ease, box-shadow 0.35s ease'
+                    }}
+                  >
                     {/* STT */}
-                    <td style={{ textAlign: 'center', fontWeight: '700', color: 'var(--text-sub)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: '700', color: isHighlighted ? '#1d4ed8' : 'var(--text-sub)' }}>
                       {index + 1}
                     </td>
 
                     {/* Tên GV */}
                     <td style={{ minWidth: '185px', width: 'auto' }}>
                       <input 
+                        id={`input-teacher-${item.id}`}
                         type="text"
                         className="excel-cell-input"
                         value={item.teacherName}
@@ -334,6 +380,7 @@ export const ExcelGrid = () => {
                     {/* Lớp */}
                     <td style={{ textAlign: 'center' }}>
                       <input 
+                        id={`input-class-${item.id}`}
                         type="text"
                         className="excel-cell-input"
                         value={item.className}
@@ -346,6 +393,7 @@ export const ExcelGrid = () => {
                     {/* Môn Học / Nội Dung */}
                     <td>
                       <input 
+                        id={`input-subject-${item.id}`}
                         type="text"
                         className="excel-cell-input"
                         value={item.subject}
@@ -357,6 +405,7 @@ export const ExcelGrid = () => {
                     {/* Sĩ Số */}
                     <td style={{ textAlign: 'right' }}>
                       <input 
+                        id={`input-student-${item.id}`}
                         type="number"
                         min="0"
                         className="excel-cell-input"
@@ -370,6 +419,7 @@ export const ExcelGrid = () => {
                     {/* Số Lượng Lẻ */}
                     <td style={{ textAlign: 'right' }}>
                       <input 
+                        id={`input-extra-${item.id}`}
                         type="number"
                         min="0"
                         className="excel-cell-input"
@@ -380,17 +430,64 @@ export const ExcelGrid = () => {
                       />
                     </td>
 
-                    {/* Đơn Giá - Nhập số trực tiếp, không popup phiền toái */}
+                    {/* Đơn Giá - Giữ bước nhảy 380, click lần 2 là 760, lần 3 là 1140..., không popup */}
                     <td style={{ textAlign: 'right' }}>
-                      <input 
-                        type="number"
-                        min="0"
-                        className="excel-cell-input"
-                        value={item.unitPrice}
-                        onChange={(e) => updateBillingItem(item.id, 'unitPrice', e.target.value)}
-                        style={{ textAlign: 'right', fontWeight: 'bold' }}
-                        placeholder="380"
-                      />
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(item.unitPrice) || 380;
+                            const next = Math.max(0, cur - 380);
+                            updateBillingItem(item.id, 'unitPrice', next);
+                          }}
+                          title="Giảm 380đ"
+                          style={{
+                            padding: '1px 5px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            border: '1px solid #cbd5e1',
+                            background: '#f1f5f9',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            color: '#475569'
+                          }}
+                        >
+                          -
+                        </button>
+                        <input 
+                          id={`input-price-${item.id}`}
+                          type="number"
+                          min="0"
+                          step="380"
+                          className="excel-cell-input"
+                          value={item.unitPrice}
+                          onChange={(e) => updateBillingItem(item.id, 'unitPrice', e.target.value)}
+                          style={{ textAlign: 'right', fontWeight: 'bold', width: '65px' }}
+                          placeholder="380"
+                          title="Bước nhảy 380đ: bấm [+] hoặc mũi tên để nhảy 760đ, 1140đ, 1520đ..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(item.unitPrice) || 0;
+                            const next = cur <= 0 ? 380 : cur + 380;
+                            updateBillingItem(item.id, 'unitPrice', next);
+                          }}
+                          title="Tăng 380đ (click lần 2: 760đ, lần 3: 1140đ, tiếp theo...)"
+                          style={{
+                            padding: '1px 5px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            border: '1px solid #93c5fd',
+                            background: '#eff6ff',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            color: '#1d4ed8'
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
                     </td>
 
                     {/* Thành Tiền (Tự Động) */}
