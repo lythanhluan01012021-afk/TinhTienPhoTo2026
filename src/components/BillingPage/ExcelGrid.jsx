@@ -3,7 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { 
   FileSpreadsheet, 
   Trash2,
-  Plus
+  Plus,
+  CloudUpload
 } from 'lucide-react';
 
 export const ExcelGrid = () => {
@@ -21,7 +22,9 @@ export const ExcelGrid = () => {
     setCurrentWeek,
     availableWeeks,
     addWeek,
-    handleAddBlankRow
+    handleAddBlankRow,
+    syncStatus,
+    syncToGoogleSheets
   } = useApp();
 
   // Xử lý thêm tuần mới
@@ -96,16 +99,44 @@ export const ExcelGrid = () => {
             <FileSpreadsheet size={20} />
           </div>
           <div>
-            <h2 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0 }}>
-              BẢNG TÍNH TIỀN PHOTO ({currentWeek})
+            <h2 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span>BẢNG TÍNH TIỀN PHOTO ({currentWeek})</span>
+              {syncStatus.status === 'syncing' && (
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1d4ed8', background: '#dbeafe', padding: '2px 8px', borderRadius: '12px' }}>
+                  🔄 Đang lưu...
+                </span>
+              )}
+              {syncStatus.status === 'success' && (
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#047857', background: '#d1fae5', padding: '2px 8px', borderRadius: '12px' }}>
+                  ✅ Đã lưu Google Sheet
+                </span>
+              )}
             </h2>
             <p style={{ fontSize: '12.5px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
-              Hiện có {displayedItems.length} dòng dữ liệu của {currentWeek} • Nhấp vào ô để sửa trực tiếp • Tự động tính Thành tiền
+              Hiện có {displayedItems.length} dòng dữ liệu của {currentWeek} • Nhấp vào ô để sửa (Tự động lưu sau 2 giây) • Nhấn thùng rác để xóa tức thì
             </p>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Nút Lưu CSDL trực tiếp tại Bảng tính */}
+          <button 
+            onClick={() => syncToGoogleSheets(false)}
+            className="neu-btn neu-btn-success"
+            style={{ 
+              fontSize: '13px', 
+              padding: '6px 14px', 
+              fontWeight: '700', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px' 
+            }}
+            title={`Lưu và cập nhật toàn bộ ${displayedItems.length} dòng của ${currentWeek} sang Google Sheets ngay lập tức`}
+          >
+            <CloudUpload size={14} />
+            <span>Lưu CSDL ({currentWeek})</span>
+          </button>
+
           {/* Bộ chọn Tuần & Nút Thêm mới tuần trực tiếp trên Bảng Tính */}
           <div 
             style={{ 
