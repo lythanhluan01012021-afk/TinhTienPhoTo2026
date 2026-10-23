@@ -213,83 +213,86 @@ export const GroupingView = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
-      {/* 1. Header Bar */}
+      {/* 1. Header Bar - Fixed Single-Row */}
       <div 
         className="neu-card"
         style={{
-          padding: '14px 20px',
+          padding: '12px 18px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          flexWrap: 'wrap',
+          flexWrap: 'nowrap',
+          flexShrink: 0,
+          overflowX: 'auto',
           gap: '12px',
           background: 'linear-gradient(135deg, #ffffff, #f0f5fc)',
           border: '1.5px solid #b8cce4'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
           <div 
             style={{ 
-              width: '42px', 
-              height: '42px', 
+              width: '38px', 
+              height: '38px', 
               borderRadius: '10px', 
               background: 'linear-gradient(135deg, #1b5ebe, #134694)', 
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: 'var(--shadow-sm)'
+              boxShadow: 'var(--shadow-sm)',
+              flexShrink: 0
             }}
           >
-            <Layers size={22} />
+            <Layers size={20} />
           </div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0 }}>
+          <div style={{ whiteSpace: 'nowrap' }}>
+            <h2 style={{ fontSize: '16.5px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0 }}>
               BẢNG RÀ SOÁT CÔNG NỢ & TỔNG BILL CÁC LỚP
             </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
-              Rà soát các lớp thiếu/không trả tuần trước, hệ thống tự động cộng dồn vào Bill ({currentWeek}) để in ấn
+            <p style={{ fontSize: '12.5px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
+              Rà soát các lớp thiếu/không trả tuần trước, tự động cộng dồn vào Bill ({currentWeek})
             </p>
           </div>
         </div>
 
-        {/* NÚT CHỌN TUẦN & THÊM TUẦN MỚI */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#eff6ff', padding: '6px 12px', borderRadius: '10px', border: '1.5px solid #93c5fd' }}>
-          <span style={{ fontSize: '13.5px', fontWeight: 'bold', color: '#134694' }}>📅 Tuần làm việc:</span>
-          <select 
-            value={currentWeek} 
-            onChange={(e) => setCurrentWeek(e.target.value)}
-            style={{ 
-              padding: '6px 12px', 
-              borderRadius: '6px', 
-              border: '1.5px solid #2563eb', 
-              fontSize: '13.5px', 
-              fontWeight: 'bold', 
-              color: '#1e40af', 
-              background: '#ffffff',
-              cursor: 'pointer' 
-            }}
-          >
-            {availableWeeks.map(w => (
-              <option key={w} value={w}>{w}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleAddNewWeek}
-            className="neu-btn neu-btn-primary"
-            style={{ fontSize: '12.5px', padding: '6px 11px', fontWeight: 'bold' }}
-            title="Thêm tuần mới vào danh sách tuần"
-          >
-            ➕ Thêm tuần mới
-          </button>
-        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0 }}>
+          {/* NÚT CHỌN TUẦN & THÊM TUẦN MỚI */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#eff6ff', padding: '5px 10px', borderRadius: '10px', border: '1.5px solid #93c5fd', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#134694' }}>📅 Tuần:</span>
+            <select 
+              value={currentWeek} 
+              onChange={(e) => setCurrentWeek(e.target.value)}
+              style={{ 
+                padding: '4px 10px', 
+                borderRadius: '6px', 
+                border: '1.5px solid #2563eb', 
+                fontSize: '13px', 
+                fontWeight: 'bold', 
+                color: '#1e40af', 
+                background: '#ffffff',
+                cursor: 'pointer' 
+              }}
+            >
+              {availableWeeks.map(w => (
+                <option key={w} value={w}>{w}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleAddNewWeek}
+              className="neu-btn neu-btn-primary"
+              style={{ fontSize: '12px', padding: '5px 10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}
+              title="Thêm tuần mới vào danh sách tuần"
+            >
+              ➕ Thêm tuần
+            </button>
+          </div>
 
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Badge trạng thái lưu CSDL Công Nợ */}
           <div 
             style={{ 
-              display: 'flex', 
+              display: 'inline-flex', 
               alignItems: 'center', 
               gap: '6px', 
               padding: '6px 12px', 
@@ -298,11 +301,13 @@ export const GroupingView = () => {
               border: `1.5px solid ${isDebtsSynced ? '#a7f3d0' : '#fde68a'}`, 
               fontSize: '12.5px', 
               fontWeight: 'bold', 
-              color: isDebtsSynced ? '#047857' : '#b45309' 
+              color: isDebtsSynced ? '#047857' : '#b45309',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
             {isDebtsSynced ? <CheckCircle size={15} color="#047857" /> : <AlertCircle size={15} color="#b45309" />}
-            <span>{isDebtsSynced ? 'CSDL: Đã lưu Sheet' : 'Công nợ chưa lưu'}</span>
+            <span>{isDebtsSynced ? 'Đã lưu Sheet' : 'Chưa lưu'}</span>
           </div>
 
           {/* NÚT LƯU CSDL CÔNG NỢ */}
@@ -311,48 +316,20 @@ export const GroupingView = () => {
             onClick={() => syncDebtsToGoogleSheets(currentWeek)}
             className="neu-btn"
             style={{ 
-              fontSize: '13.5px', 
-              padding: '8px 16px', 
+              fontSize: '13px', 
+              padding: '7px 14px', 
               fontWeight: 'bold',
               background: 'linear-gradient(135deg, #0f766e, #0d9488)',
               color: '#ffffff',
               border: 'none',
               boxShadow: '0 2px 8px rgba(15, 118, 110, 0.35)',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
             title="Lưu danh sách học sinh / lớp thiếu tiền vào Google Sheets (Tab CongNo_TheoTuan)"
           >
-            <span>💾 Lưu CSDL Công Nợ ({currentWeek})</span>
-          </button>
-
-          {/* NÚT TẢI TỪ DRIVE */}
-          <button 
-            type="button"
-            onClick={fetchFromGoogleSheets}
-            className="neu-btn"
-            style={{ fontSize: '13px', padding: '8px 12px', background: '#ffffff', color: '#1e40af', border: '1.5px solid #93c5fd' }}
-            title="Tải CSDL công nợ và đơn photo từ Google Sheets"
-          >
-            <span>📥 Tải Từ Drive</span>
-          </button>
-
-          <button 
-            onClick={() => setIsGroupedView(false)}
-            className="neu-btn"
-            style={{ fontSize: '13.5px', padding: '8px 14px' }}
-          >
-            <ArrowLeft size={16} />
-            <span>Quay lại Bảng Chi Tiết</span>
-          </button>
-
-          <button 
-            onClick={handlePrintAll}
-            className="neu-btn neu-btn-primary"
-            style={{ fontSize: '14px', padding: '9px 18px', fontWeight: 'bold' }}
-            title="Mở xem trước và in phiếu quyết toán đã cộng dồn cho tất cả các lớp"
-          >
-            <Printer size={17} />
-            <span>Xuất Bill Tất Cả Các Lớp</span>
+            <span>💾 Lưu Công Nợ ({currentWeek})</span>
           </button>
         </div>
       </div>
@@ -365,17 +342,18 @@ export const GroupingView = () => {
           background: '#ffffff',
           borderRadius: '14px',
           border: '2px solid #93c5fd',
-          boxShadow: '0 4px 14px rgba(27, 94, 190, 0.08)'
+          boxShadow: '0 4px 14px rgba(27, 94, 190, 0.08)',
+          flexShrink: 0
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'nowrap', overflowX: 'auto', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
             <span style={{ 
               background: '#eff6ff', 
               color: '#1b5ebe', 
               padding: '4px 10px', 
               borderRadius: '6px', 
-              display: 'flex', 
+              display: 'inline-flex', 
               alignItems: 'center',
               fontWeight: 'bold',
               fontSize: '13px'
@@ -383,8 +361,8 @@ export const GroupingView = () => {
               <Zap size={15} style={{ marginRight: '5px' }} />
               RÀ SOÁT CÔNG NỢ TUẦN TRƯỚC
             </span>
-            <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#134694' }}>
-              Chọn lớp còn thiếu hoặc không trả trong tuần trước $\rightarrow$ Nhập số tiền để cộng dồn vào Bill tuần này:
+            <span style={{ fontWeight: 'bold', fontSize: '14.5px', color: '#134694' }}>
+              Chọn lớp còn thiếu hoặc không trả trong tuần trước → Nhập số tiền để cộng dồn vào Bill tuần này:
             </span>
           </div>
 

@@ -2087,7 +2087,7 @@ function cleanDuplicates() {
                   Mã Nguồn Google Apps Script (Sẵn Sàng Triển Khai 1-Chạm)
                 </h4>
                 <p style={{ fontSize: '13px', color: 'var(--text-sub)' }}>
-                  Tạo 1 Google Sheet trong thư mục Drive chỉ định $\rightarrow$ Tiện ích mở rộng (Extensions) $\rightarrow$ Apps Script $\rightarrow$ Dán mã dưới đây $\rightarrow$ Triển khai dưới dạng Web App.
+                  Tạo 1 Google Sheet trong thư mục Drive chỉ định → Tiện ích mở rộng (Extensions) → Apps Script → Dán mã dưới đây → Triển khai dưới dạng Web App.
                 </p>
               </div>
 

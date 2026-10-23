@@ -12,9 +12,7 @@ import {
   CloudDownload,
   ExternalLink,
   RotateCcw,
-  FolderOpen,
-  WifiOff,
-  Save
+  WifiOff
 } from 'lucide-react';
 
 export const Navbar = () => {
@@ -32,10 +30,7 @@ export const Navbar = () => {
     fetchFromGoogleSheets,
     clearBillingGrid,
     totalClassDebts,
-    openLocalExcelFile,
-    saveToLocalExcelFile,
-    isOnline,
-    localExcelStatus
+    isOnline
   } = useApp();
 
   return (
@@ -46,31 +41,32 @@ export const Navbar = () => {
         top: 0, 
         zIndex: 1000, 
         backgroundColor: 'var(--bg-main)',
-        paddingTop: '10px',
+        paddingTop: '8px',
         paddingBottom: '10px',
-        marginBottom: '16px',
-        boxShadow: '0 4px 16px rgba(19, 43, 79, 0.05)'
+        marginBottom: '12px',
+        boxShadow: '0 4px 16px rgba(19, 43, 79, 0.06)'
       }}
     >
       {/* Top Banner: School Branding (Left) + Fixed Action Toolbar (Right) */}
       <div 
         className="neu-card" 
         style={{ 
-          padding: '10px 18px', 
+          padding: '10px 16px', 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px'
+          flexWrap: 'nowrap',
+          gap: '12px',
+          overflowX: 'auto'
         }}
       >
         {/* School Branding */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <div 
             className="neu-card-sm"
             style={{ 
-              width: '42px', 
-              height: '42px', 
+              width: '38px', 
+              height: '38px', 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
@@ -79,19 +75,19 @@ export const Navbar = () => {
               flexShrink: 0
             }}
           >
-            <Printer size={24} />
+            <Printer size={22} />
           </div>
-          <div>
-            <h1 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', textTransform: 'uppercase', letterSpacing: '0.4px', lineHeight: 1.2, margin: 0 }}>
+          <div style={{ whiteSpace: 'nowrap' }}>
+            <h1 style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-bold)', textTransform: 'uppercase', letterSpacing: '0.3px', lineHeight: 1.2, margin: 0 }}>
               TÍNH TIỀN PHOTO HỌC LIỆU
             </h1>
-            <p style={{ fontSize: '12.5px', color: 'var(--color-primary)', fontWeight: '600', margin: '2px 0 0 0' }}>
+            <p style={{ fontSize: '12px', color: 'var(--color-primary)', fontWeight: '600', margin: '2px 0 0 0' }}>
               {settings.departmentName} • Niên khóa {settings.schoolYear}
             </p>
           </div>
         </div>
 
-        {/* Action Buttons Toolbar: Fixed, Single-Row with Smooth Flow */}
+        {/* Action Buttons Toolbar: Fixed Single-Row, Never Wraps on Browser Resize */}
         <div 
           className="header-action-toolbar"
           style={{ 
@@ -100,122 +96,9 @@ export const Navbar = () => {
             gap: '8px', 
             flexWrap: 'nowrap',
             flexShrink: 0,
-            overflowX: 'auto',
-            padding: '2px 0',
-            maxWidth: '100%'
+            padding: '2px 0'
           }}
         >
-          {/* 1. Toggle Grouped View */}
-          <button 
-            onClick={() => {
-              setIsGroupedView(!isGroupedView);
-              if (currentTab !== 'billing') setCurrentTab('billing');
-            }}
-            className={`neu-btn ${isGroupedView ? 'active' : ''}`}
-            title="Xem tổng tiền & quản lý tiền nợ/thiếu theo từng Lớp học"
-            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Layers size={15} color="var(--color-primary)" />
-            <span>{isGroupedView ? 'Hiện Bảng Chi Tiết' : 'Tổng Theo Lớp'}</span>
-            {totalClassDebts > 0 && !isGroupedView && (
-              <span 
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  backgroundColor: '#ef4444',
-                  borderRadius: '50%',
-                  display: 'inline-block',
-                  boxShadow: '0 0 6px #ef4444'
-                }}
-                title="Đang có lớp ghi nhận nợ/thiếu"
-              />
-            )}
-          </button>
-
-          {/* 2. Export Excel */}
-          <button 
-            onClick={handleExportExcel}
-            className="neu-btn"
-            title="Tải bảng tính thành file Excel (.xlsx)"
-            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            <Download size={15} color="var(--color-primary)" />
-            <span>Xuất Excel</span>
-          </button>
-
-          {/* 4. Print A4 */}
-          <button 
-            onClick={() => setIsPrintModalOpen(true)}
-            className="neu-btn neu-btn-primary"
-            title="Mở bảng in ấn theo chuẩn mẫu A4 chính thức"
-            style={{ fontSize: '13px', padding: '7px 15px', whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            <Printer size={15} />
-            <span>In Ấn A4</span>
-          </button>
-
-          {/* 5. Fetch from Drive */}
-          <button 
-            onClick={fetchFromGoogleSheets}
-            className="neu-btn"
-            title="Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về máy"
-            style={{ fontSize: '13px', padding: '7px 13px', color: '#1b5ebe', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            <CloudDownload size={15} />
-            <span>Tải Từ Drive</span>
-          </button>
-
-          {/* 6. Save CSDL Song Song (File Excel Máy + Google Sheets) */}
-          <button 
-            onClick={syncToGoogleSheets}
-            className="neu-btn neu-btn-success"
-            title="Lưu song song đồng thời vào cả 2 nơi: File Excel trên máy tính (CSDL_PHOTO_LOCAL.xlsx) và Google Sheets"
-            style={{ fontSize: '13px', padding: '7px 15px', whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            <CloudUpload size={15} />
-            <span>Lưu Song Song</span>
-          </button>
-
-          {/* 6.1 Lưu riêng vào File Excel máy tính */}
-          <button 
-            onClick={() => saveToLocalExcelFile(true)}
-            className="neu-btn"
-            title="Ghi trực tiếp ngay lập tức vào file Excel trên máy tính (e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx) hoàn toàn không cần Internet"
-            style={{ 
-              fontSize: '13px', 
-              padding: '7px 12px', 
-              whiteSpace: 'nowrap', 
-              flexShrink: 0,
-              color: '#1e40af',
-              backgroundColor: '#eff6ff',
-              border: '1.5px solid #93c5fd',
-              fontWeight: '700'
-            }}
-          >
-            <Save size={15} color="#2563eb" />
-            <span>Lưu Excel Máy</span>
-          </button>
-
-          {/* 6.5 Mở file Excel máy tính trực tiếp */}
-          <button 
-            onClick={openLocalExcelFile}
-            className="neu-btn"
-            title="Mở trực tiếp file Excel CSDL_PHOTO_LOCAL.xlsx trên phần mềm Microsoft Excel máy tính"
-            style={{ 
-              fontSize: '13px', 
-              padding: '7px 12px', 
-              whiteSpace: 'nowrap', 
-              flexShrink: 0,
-              color: '#065f46',
-              backgroundColor: '#ecfdf5',
-              border: '1.5px solid #a7f3d0',
-              fontWeight: '700'
-            }}
-          >
-            <FolderOpen size={15} color="#059669" />
-            <span>Excel Máy</span>
-          </button>
-
           {/* Đèn báo Ngoại Tuyến nếu mất mạng */}
           {!isOnline && (
             <span 
@@ -235,11 +118,82 @@ export const Navbar = () => {
               }}
               title="Đang ngoại tuyến: Hệ thống đang lưu trực tiếp vào CSDL_PHOTO_LOCAL.xlsx trên máy"
             >
-              <WifiOff size={14} /> Ngoại Tuyến (Lưu Excel Máy)
+              <WifiOff size={14} /> Ngoại Tuyến
             </span>
           )}
 
-          {/* 7. Xem CSDL (Mở nhanh Google Sheets CSDL) */}
+          {/* 1. Toggle Grouped View */}
+          <button 
+            onClick={() => {
+              setIsGroupedView(!isGroupedView);
+              if (currentTab !== 'billing') setCurrentTab('billing');
+            }}
+            className={`neu-btn ${isGroupedView ? 'active' : ''}`}
+            title="Chuyển đổi giữa Bảng Chi Tiết và Bảng Tổng Hợp / Công Nợ Theo Lớp"
+            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Layers size={15} color="var(--color-primary)" />
+            <span>{isGroupedView ? 'Hiện Bảng Chi Tiết' : 'Tổng Theo Lớp'}</span>
+            {totalClassDebts > 0 && !isGroupedView && (
+              <span 
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  backgroundColor: '#ef4444',
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  boxShadow: '0 0 6px #ef4444'
+                }}
+                title="Đang có lớp ghi nhận nợ/thiếu"
+              />
+            )}
+          </button>
+
+          {/* 2. Print A4 */}
+          <button 
+            onClick={() => setIsPrintModalOpen(true)}
+            className="neu-btn neu-btn-primary"
+            title="Mở bảng xem trước và in ấn chuẩn mẫu A4"
+            style={{ fontSize: '13px', padding: '7px 14px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Printer size={15} />
+            <span>In Ấn A4</span>
+          </button>
+
+          {/* 3. Save CSDL (Google Sheets + File Excel Máy) */}
+          <button 
+            onClick={() => syncToGoogleSheets(false)}
+            className="neu-btn neu-btn-success"
+            title="Lưu đồng thời vào Google Sheets trên Drive và File Excel trên máy tính"
+            style={{ fontSize: '13px', padding: '7px 14px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <CloudUpload size={15} />
+            <span>Lưu CSDL</span>
+          </button>
+
+          {/* 4. Fetch from Drive */}
+          <button 
+            onClick={fetchFromGoogleSheets}
+            className="neu-btn"
+            title="Tải toàn bộ dữ liệu từ Google Sheets trên Drive về máy"
+            style={{ fontSize: '13px', padding: '7px 13px', color: '#1b5ebe', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <CloudDownload size={15} />
+            <span>Tải Từ Drive</span>
+          </button>
+
+          {/* 5. Export Excel */}
+          <button 
+            onClick={handleExportExcel}
+            className="neu-btn"
+            title="Tải toàn bộ CSDL 4 sheet thành file Excel (.xlsx) về máy"
+            style={{ fontSize: '13px', padding: '7px 13px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Download size={15} color="var(--color-primary)" />
+            <span>Xuất Excel</span>
+          </button>
+
+          {/* 6. Xem CSDL (Mở nhanh Google Sheets CSDL) */}
           <button 
             onClick={handleOpenDatabase}
             className="neu-btn"
@@ -259,7 +213,7 @@ export const Navbar = () => {
             <span>Xem CSDL</span>
           </button>
 
-          {/* 8. Clear Grid (Làm mới) */}
+          {/* 7. Clear Grid (Làm mới) */}
           <button 
             onClick={clearBillingGrid}
             className="neu-btn"
@@ -271,39 +225,43 @@ export const Navbar = () => {
         </div>
       </div>
 
-      {/* Navigation Tab Bar */}
+      {/* Navigation Tab Bar: Fixed Single-Row */}
       <div 
         style={{ 
-          marginTop: '15px', 
+          marginTop: '10px', 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px'
+          flexWrap: 'nowrap',
+          gap: '12px',
+          overflowX: 'auto'
         }}
       >
-        <div className="nav-tab-container">
+        <div className="nav-tab-container" style={{ flexWrap: 'nowrap', flexShrink: 0 }}>
           <button 
             className={`nav-tab ${currentTab === 'billing' ? 'active' : ''}`}
             onClick={() => setCurrentTab('billing')}
+            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            <Calculator size={18} />
+            <Calculator size={17} />
             <span>Trang 1: Bàn Tính Tiền Photo</span>
           </button>
 
           <button 
             className={`nav-tab ${currentTab === 'admin' ? 'active' : ''}`}
             onClick={() => setCurrentTab('admin')}
+            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            <Settings size={18} />
+            <Settings size={17} />
             <span>Trang 2: Dashboard Admin & CSDL</span>
           </button>
 
           <button 
             className={`nav-tab ${currentTab === 'cashflow' ? 'active' : ''}`}
             onClick={() => setCurrentTab('cashflow')}
+            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            <Receipt size={18} />
+            <Receipt size={17} />
             <span>Sổ Quỹ Thu / Chi</span>
           </button>
         </div>
@@ -313,18 +271,19 @@ export const Navbar = () => {
           <div 
             className="neu-card-sm"
             style={{ 
-              padding: '8px 16px', 
-              fontSize: '13.5px',
+              padding: '6px 14px', 
+              fontSize: '13px',
               fontWeight: '600',
               color: syncStatus.status === 'error' ? 'var(--color-danger)' : 'var(--color-success)',
               background: '#f4f8fc',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              animation: 'fadeIn 0.3s ease'
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
-            <Cloud size={16} />
+            <Cloud size={15} />
             <span>{syncStatus.message}</span>
           </div>
         )}

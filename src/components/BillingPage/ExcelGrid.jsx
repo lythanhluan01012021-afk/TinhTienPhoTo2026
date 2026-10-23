@@ -131,33 +131,35 @@ export const ExcelGrid = () => {
 
   return (
     <div className="neu-card" style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Compact Table Header Bar */}
+      {/* Compact Table Header Bar - Fixed Single-Row */}
       <div 
         style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          flexWrap: 'wrap', 
-          gap: '10px',
+          flexWrap: 'nowrap', 
+          flexShrink: 0,
+          overflowX: 'auto',
+          gap: '12px',
           borderBottom: '1.5px solid #d8e2ef',
           paddingBottom: '12px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <div 
             className="neu-card-sm" 
-            style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}
+            style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}
           >
             <FileSpreadsheet size={20} />
           </div>
-          <div>
-            <h2 style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ whiteSpace: 'nowrap' }}>
+            <h2 style={{ fontSize: '16.5px', fontWeight: 'bold', color: 'var(--text-bold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap' }}>
               <span>BẢNG TÍNH TIỀN PHOTO ({currentWeek})</span>
               
               {/* Đèn báo trạng thái Mạng: Online / Offline */}
               {!isOnline ? (
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#c2410c', background: '#ffedd5', border: '1px solid #fed7aa', padding: '2px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <WifiOff size={13} /> Mất mạng (Đã lưu Excel máy)
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#c2410c', background: '#ffedd5', border: '1px solid #fed7aa', padding: '2px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <WifiOff size={12} /> Mất mạng
                 </span>
               ) : (
                 <span style={{ fontSize: '11px', fontWeight: '600', color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -165,123 +167,26 @@ export const ExcelGrid = () => {
                 </span>
               )}
 
-              {/* Trạng thái File Excel máy tính */}
-              {localExcelStatus?.lastSaved && (
-                <span 
-                  onClick={openLocalExcelFile}
-                  style={{ fontSize: '11px', fontWeight: '600', color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                  title="Nhấp để mở file CSDL_PHOTO_LOCAL.xlsx trực tiếp trên Excel của máy tính"
-                >
-                  <HardDrive size={12} /> Excel máy: {localExcelStatus.lastSaved}
-                </span>
-              )}
-
               {/* Trạng thái Đồng bộ Google Sheets */}
               {syncStatus.status === 'syncing' && (
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1d4ed8', background: '#dbeafe', padding: '2px 8px', borderRadius: '12px' }}>
-                  🔄 {syncStatus.message || 'Đang lưu song song...'}
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#1d4ed8', background: '#dbeafe', padding: '2px 8px', borderRadius: '12px' }}>
+                  🔄 Đang lưu...
                 </span>
               )}
               {syncStatus.status === 'success' && (
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#047857', background: '#d1fae5', padding: '2px 8px', borderRadius: '12px' }}>
-                  ✅ Đã lưu Google Sheet
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#047857', background: '#d1fae5', padding: '2px 8px', borderRadius: '12px' }}>
+                  ✅ Đã lưu CSDL
                 </span>
               )}
             </h2>
-            <p style={{ fontSize: '12.5px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
-              Hiện có {displayedItems.length} dòng dữ liệu của {currentWeek} • Tự động lưu song song (File Excel máy tính & Google Sheet) sau 2 giây
+            <p style={{ fontSize: '12px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
+              Hiện có {displayedItems.length} dòng dữ liệu của {currentWeek} • Tự động lưu CSDL sau 2 giây
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Nút 1: Lưu CSDL Song Song (File Excel Máy + Google Sheets) */}
-          <button 
-            onClick={() => syncToGoogleSheets(false)}
-            className="neu-btn neu-btn-success"
-            style={{ 
-              fontSize: '13px', 
-              padding: '6px 14px', 
-              fontWeight: '700', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px' 
-            }}
-            title={`Lưu đồng thời toàn bộ ${displayedItems.length} dòng của ${currentWeek} vào cả 2 nơi: File Excel máy tính và Google Sheets`}
-          >
-            <CloudUpload size={14} />
-            <span>Lưu Song Song (Máy & Sheet)</span>
-          </button>
-
-          {/* Nút 2: Lưu riêng File Excel Máy Tính (Không cần mạng) */}
-          <button 
-            type="button"
-            onClick={() => saveToLocalExcelFile(true)}
-            className="neu-btn"
-            style={{ 
-              fontSize: '13px', 
-              padding: '6px 13px', 
-              color: '#1e40af', 
-              background: '#eff6ff', 
-              border: '1.5px solid #93c5fd', 
-              fontWeight: '700', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px',
-              cursor: 'pointer' 
-            }}
-            title="Ghi trực tiếp ngay lập tức vào file Excel trên máy (e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx) hoàn toàn không cần Internet"
-          >
-            <Save size={14} color="#2563eb" />
-            <span>Lưu Excel Máy</span>
-          </button>
-
-          {/* Nút Mở File Excel Máy Tính trực tiếp */}
-          <button 
-            type="button"
-            onClick={openLocalExcelFile}
-            className="neu-btn"
-            style={{ 
-              fontSize: '13px', 
-              padding: '6px 13px', 
-              color: '#065f46', 
-              background: '#ecfdf5', 
-              border: '1.5px solid #a7f3d0', 
-              fontWeight: '700', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px',
-              cursor: 'pointer'
-            }}
-            title="Mở trực tiếp file CSDL_PHOTO_LOCAL.xlsx trên phần mềm Microsoft Excel của máy tính để xem, in ấn hoặc sao chép"
-          >
-            <FolderOpen size={14} color="#059669" />
-            <span>Mở Excel Máy</span>
-          </button>
-
-          {/* Nút Tải CSDL Excel (.xlsx) trực tiếp về máy */}
-          <button 
-            type="button"
-            onClick={handleExportExcel}
-            className="neu-btn"
-            style={{ 
-              fontSize: '13px', 
-              padding: '6px 13px', 
-              color: '#1e40af', 
-              background: '#eff6ff', 
-              border: '1.5px solid #93c5fd', 
-              fontWeight: '700', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px',
-              cursor: 'pointer'
-            }}
-            title="Tải toàn bộ CSDL 4 sheet chuẩn (Bảng tính, Nợ các lớp, Sổ quỹ, Doanh thu) thành file Excel .xlsx tải về máy"
-          >
-            <Download size={14} color="#2563eb" />
-            <span>Tải Excel ({currentWeek})</span>
-          </button>
-
+        {/* Các nút thao tác riêng của Bảng Tính (Cố định 1 hàng, không trùng với Navbar) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', flexShrink: 0 }}>
           {/* Bộ chọn Tuần & Nút Thêm mới tuần trực tiếp trên Bảng Tính */}
           <div 
             style={{ 
@@ -291,7 +196,9 @@ export const ExcelGrid = () => {
               background: '#eff6ff', 
               padding: '4px 8px', 
               borderRadius: '8px', 
-              border: '1.5px solid #93c5fd' 
+              border: '1.5px solid #93c5fd',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
           >
             <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1d4ed8' }}>📅 Tuần:</span>
@@ -326,6 +233,7 @@ export const ExcelGrid = () => {
                 background: '#ffffff', 
                 border: '1px solid #93c5fd',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px'
@@ -333,7 +241,7 @@ export const ExcelGrid = () => {
               title="Thêm tuần mới vào danh sách tuần"
             >
               <Plus size={13} />
-              <span>Thêm mới</span>
+              <span>Thêm tuần</span>
             </button>
           </div>
 
@@ -346,6 +254,8 @@ export const ExcelGrid = () => {
               padding: '6px 12px', 
               color: 'var(--color-primary)', 
               fontWeight: '600', 
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
               display: 'inline-flex', 
               alignItems: 'center', 
               gap: '6px' 
@@ -368,6 +278,8 @@ export const ExcelGrid = () => {
               background: '#eff6ff', 
               border: '1.5px solid #93c5fd', 
               fontWeight: 'bold', 
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
               display: 'inline-flex', 
               alignItems: 'center', 
               gap: '6px',
@@ -378,38 +290,6 @@ export const ExcelGrid = () => {
             <Copy size={14} color="#2563eb" />
             <span>Sao Chép Dòng Trước</span>
           </button>
-
-          {totalClassDebts > 0 ? (
-            <button 
-              onClick={() => setIsGroupedView(true)}
-              className="neu-btn" 
-              style={{ 
-                padding: '6px 14px', 
-                fontSize: '13px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px',
-                border: '1.5px solid #fca5a5',
-                background: '#fef2f2',
-                color: '#991b1b',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-              title="Bấm để xem và sửa nợ của các lớp"
-            >
-              <span>🔴 Có {Object.keys(classDebts || {}).filter(c => (classDebts[c]?.amount || 0) > 0).length} lớp đang nợ/thiếu (+{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalClassDebts)})</span>
-            </button>
-          ) : (
-            <button 
-              onClick={() => setIsGroupedView(true)}
-              className="neu-btn"
-              style={{ fontSize: '13px', padding: '6px 14px', color: 'var(--color-primary-dark)', fontWeight: '600' }}
-              title="Bấm để chọn lớp thiếu hoặc không trả để cộng vào bill in"
-            >
-              <span>⚡ Ghi Nợ / Tiền Thiếu Cho Lớp</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -435,22 +315,23 @@ export const ExcelGrid = () => {
           <table className="excel-table" style={{ tableLayout: 'auto', width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>STT</th>
-                <th style={{ width: 'auto', whiteSpace: 'nowrap' }}>Tên Giáo Viên</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Lớp</th>
-                <th style={{ width: 'auto', whiteSpace: 'nowrap' }}>Tài liệu</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Sĩ Số</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Số Lượng Lẻ</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Đơn Giá (đ)</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Thành Tiền (đ)</th>
-                <th style={{ width: '1%', textAlign: 'center', whiteSpace: 'nowrap' }}>Thao Tác</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', padding: '9px 6px' }}>STT</th>
+                <th style={{ width: 'auto', whiteSpace: 'nowrap', textAlign: 'left', padding: '9px 10px' }}>Tên Giáo Viên</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', padding: '9px 8px' }}>Lớp</th>
+                <th style={{ width: 'auto', whiteSpace: 'nowrap', textAlign: 'left', padding: '9px 10px' }}>Tài liệu</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', padding: '9px 8px' }}>Sĩ Số</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', padding: '9px 8px' }}>SL Lẻ</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', padding: '9px 8px' }}>Đơn Giá (đ)</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', padding: '9px 10px' }}>Thành Tiền (đ)</th>
+                <th style={{ width: '1%', textAlign: 'center', whiteSpace: 'nowrap', padding: '9px 6px' }}>Thao Tác</th>
               </tr>
             </thead>
             <tbody>
               {displayedItems.map((item, index) => {
-                const totalCopies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
-
                 const isHighlighted = item.id === focusedItemId;
+                const formattedUnitPrice = item.unitPrice !== '' && item.unitPrice !== null && item.unitPrice !== undefined
+                  ? Number(item.unitPrice).toLocaleString('vi-VN')
+                  : '';
 
                 return (
                   <tr 
@@ -463,85 +344,161 @@ export const ExcelGrid = () => {
                     }}
                   >
                     {/* STT */}
-                    <td style={{ textAlign: 'center', fontWeight: '700', whiteSpace: 'nowrap', color: isHighlighted ? '#1d4ed8' : 'var(--text-sub)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: '700', whiteSpace: 'nowrap', padding: '6px 6px', color: isHighlighted ? '#1d4ed8' : 'var(--text-sub)' }}>
                       {index + 1}
                     </td>
 
-                    {/* Tên GV */}
-                    <td style={{ width: 'auto', whiteSpace: 'nowrap' }}>
-                      <input 
-                        id={`input-teacher-${item.id}`}
-                        type="text"
-                        className="excel-cell-input"
-                        value={item.teacherName}
-                        size={Math.max(18, (item.teacherName || '').length + 2)}
-                        onChange={(e) => updateBillingItem(item.id, 'teacherName', e.target.value)}
-                        placeholder="Tên GV / Học sinh / Người in..."
-                        style={{ fontWeight: '600', width: '100%', minWidth: `${Math.max(16, (item.teacherName || '').length + 2)}ch` }}
-                        title={item.teacherName}
-                      />
+                    {/* Tên GV - Auto-size exact pixel width */}
+                    <td style={{ width: 'auto', whiteSpace: 'nowrap', padding: '5px 6px' }}>
+                      <div style={{ display: 'grid', alignItems: 'center', width: '100%' }}>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            gridArea: '1 / 1 / 2 / 2',
+                            visibility: 'hidden',
+                            whiteSpace: 'pre',
+                            padding: '4px 10px',
+                            fontSize: '14.5px',
+                            fontWeight: '600',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          {item.teacherName || 'Tên Giáo Viên'}
+                        </span>
+                        <input 
+                          id={`input-teacher-${item.id}`}
+                          type="text"
+                          className="excel-cell-input"
+                          value={item.teacherName}
+                          onChange={(e) => updateBillingItem(item.id, 'teacherName', e.target.value)}
+                          placeholder="Tên GV..."
+                          style={{ gridArea: '1 / 1 / 2 / 2', fontWeight: '600', width: '100%', minWidth: 0 }}
+                          title={item.teacherName}
+                        />
+                      </div>
                     </td>
 
-                    {/* Lớp */}
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <input 
-                        id={`input-class-${item.id}`}
-                        type="text"
-                        className="excel-cell-input"
-                        value={item.className}
-                        size={Math.max(6, (item.className || '').length + 2)}
-                        onChange={(e) => updateBillingItem(item.id, 'className', e.target.value)}
-                        placeholder="Lớp..."
-                        style={{ textAlign: 'center', fontWeight: '700', color: 'var(--color-primary)', width: '100%', minWidth: `${Math.max(6, (item.className || '').length + 2)}ch` }}
-                        title={item.className}
-                      />
+                    {/* Lớp - Auto-size exact pixel width */}
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap', padding: '5px 6px' }}>
+                      <div style={{ display: 'grid', alignItems: 'center', width: '100%' }}>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            gridArea: '1 / 1 / 2 / 2',
+                            visibility: 'hidden',
+                            whiteSpace: 'pre',
+                            padding: '4px 8px',
+                            fontSize: '14.5px',
+                            fontWeight: '700',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          {item.className || '10A10'}
+                        </span>
+                        <input 
+                          id={`input-class-${item.id}`}
+                          type="text"
+                          className="excel-cell-input"
+                          value={item.className}
+                          onChange={(e) => updateBillingItem(item.id, 'className', e.target.value)}
+                          placeholder="Lớp..."
+                          style={{ gridArea: '1 / 1 / 2 / 2', textAlign: 'center', fontWeight: '700', color: 'var(--color-primary)', width: '100%', minWidth: 0 }}
+                          title={item.className}
+                        />
+                      </div>
                     </td>
 
-                    {/* Tài liệu */}
-                    <td style={{ width: 'auto', whiteSpace: 'nowrap' }}>
-                      <input 
-                        id={`input-subject-${item.id}`}
-                        type="text"
-                        className="excel-cell-input"
-                        value={item.subject}
-                        size={Math.max(14, (item.subject || '').length + 2)}
-                        onChange={(e) => updateBillingItem(item.id, 'subject', e.target.value)}
-                        placeholder="Tài liệu..."
-                        style={{ width: '100%', minWidth: `${Math.max(12, (item.subject || '').length + 2)}ch` }}
-                        title={item.subject}
-                      />
+                    {/* Tài liệu - Auto-size exact pixel width */}
+                    <td style={{ width: 'auto', whiteSpace: 'nowrap', padding: '5px 6px' }}>
+                      <div style={{ display: 'grid', alignItems: 'center', width: '100%' }}>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            gridArea: '1 / 1 / 2 / 2',
+                            visibility: 'hidden',
+                            whiteSpace: 'pre',
+                            padding: '4px 10px',
+                            fontSize: '14.5px',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          {item.subject || 'Tài liệu...'}
+                        </span>
+                        <input 
+                          id={`input-subject-${item.id}`}
+                          type="text"
+                          className="excel-cell-input"
+                          value={item.subject}
+                          onChange={(e) => updateBillingItem(item.id, 'subject', e.target.value)}
+                          placeholder="Tài liệu..."
+                          style={{ gridArea: '1 / 1 / 2 / 2', width: '100%', minWidth: 0 }}
+                          title={item.subject}
+                        />
+                      </div>
                     </td>
 
-                    {/* Sĩ Số */}
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <input 
-                        id={`input-student-${item.id}`}
-                        type="number"
-                        min="0"
-                        className="excel-cell-input"
-                        value={item.studentCount}
-                        onChange={(e) => updateBillingItem(item.id, 'studentCount', e.target.value)}
-                        placeholder="0"
-                        style={{ textAlign: 'right', fontWeight: '600', width: '100%', minWidth: `${Math.max(6, String(item.studentCount ?? '').length + 4)}ch` }}
-                      />
+                    {/* Sĩ Số - Auto-size exact pixel width */}
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', padding: '5px 6px' }}>
+                      <div style={{ display: 'grid', alignItems: 'center', width: '100%' }}>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            gridArea: '1 / 1 / 2 / 2',
+                            visibility: 'hidden',
+                            whiteSpace: 'pre',
+                            padding: '4px 22px 4px 8px',
+                            fontSize: '14.5px',
+                            fontWeight: '600',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          {String(item.studentCount ?? '00')}
+                        </span>
+                        <input 
+                          id={`input-student-${item.id}`}
+                          type="number"
+                          min="0"
+                          className="excel-cell-input"
+                          value={item.studentCount}
+                          onChange={(e) => updateBillingItem(item.id, 'studentCount', e.target.value)}
+                          placeholder="0"
+                          style={{ gridArea: '1 / 1 / 2 / 2', textAlign: 'right', fontWeight: '600', width: '100%', minWidth: 0 }}
+                        />
+                      </div>
                     </td>
 
-                    {/* Số Lượng Lẻ */}
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <input 
-                        id={`input-extra-${item.id}`}
-                        type="number"
-                        min="0"
-                        className="excel-cell-input"
-                        value={item.extraCount}
-                        onChange={(e) => updateBillingItem(item.id, 'extraCount', e.target.value)}
-                        placeholder="0"
-                        style={{ textAlign: 'right', fontWeight: '600', color: '#b45309', width: '100%', minWidth: `${Math.max(6, String(item.extraCount ?? '').length + 4)}ch` }}
-                      />
+                    {/* SL Lẻ - Auto-size exact pixel width */}
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', padding: '5px 6px' }}>
+                      <div style={{ display: 'grid', alignItems: 'center', width: '100%' }}>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            gridArea: '1 / 1 / 2 / 2',
+                            visibility: 'hidden',
+                            whiteSpace: 'pre',
+                            padding: '4px 22px 4px 8px',
+                            fontSize: '14.5px',
+                            fontWeight: '600',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          {String(item.extraCount ?? '00')}
+                        </span>
+                        <input 
+                          id={`input-extra-${item.id}`}
+                          type="number"
+                          min="0"
+                          className="excel-cell-input"
+                          value={item.extraCount}
+                          onChange={(e) => updateBillingItem(item.id, 'extraCount', e.target.value)}
+                          placeholder="0"
+                          style={{ gridArea: '1 / 1 / 2 / 2', textAlign: 'right', fontWeight: '600', color: '#b45309', width: '100%', minWidth: 0 }}
+                        />
+                      </div>
                     </td>
 
                     {/* Đơn Giá - Giữ bước nhảy 380, click lần 2 là 760, lần 3 là 1.140..., không popup */}
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', padding: '5px 6px' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3px' }}>
                         <button
                           type="button"
@@ -559,41 +516,59 @@ export const ExcelGrid = () => {
                             background: '#f1f5f9',
                             borderRadius: '4px',
                             cursor: 'pointer',
-                            color: '#475569'
+                            color: '#475569',
+                            flexShrink: 0
                           }}
                         >
                           -
                         </button>
-                        <input 
-                          id={`input-price-${item.id}`}
-                          type="text"
-                          inputMode="numeric"
-                          className="excel-cell-input"
-                          value={item.unitPrice !== '' && item.unitPrice !== null && item.unitPrice !== undefined ? Number(item.unitPrice).toLocaleString('vi-VN') : ''}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/[^\d]/g, '');
-                            updateBillingItem(item.id, 'unitPrice', raw === '' ? '' : Number(raw));
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'ArrowUp') {
-                              e.preventDefault();
-                              const cur = Number(item.unitPrice) || 0;
-                              updateBillingItem(item.id, 'unitPrice', cur <= 0 ? 380 : cur + 380);
-                            } else if (e.key === 'ArrowDown') {
-                              e.preventDefault();
-                              const cur = Number(item.unitPrice) || 380;
-                              updateBillingItem(item.id, 'unitPrice', Math.max(0, cur - 380));
-                            }
-                          }}
-                          style={{
-                            textAlign: 'right',
-                            fontWeight: 'bold',
-                            width: `${Math.max(6, (item.unitPrice !== '' && item.unitPrice !== null && item.unitPrice !== undefined ? Number(item.unitPrice).toLocaleString('vi-VN') : '').length + 2)}ch`,
-                            minWidth: '58px'
-                          }}
-                          placeholder="380"
-                          title="Bước nhảy 380đ: bấm [+] hoặc mũi tên để nhảy 760đ, 1.140đ, 1.520đ..."
-                        />
+                        <div style={{ display: 'inline-grid', alignItems: 'center' }}>
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              gridArea: '1 / 1 / 2 / 2',
+                              visibility: 'hidden',
+                              whiteSpace: 'pre',
+                              padding: '4px 8px',
+                              fontSize: '14.5px',
+                              fontWeight: 'bold',
+                              pointerEvents: 'none'
+                            }}
+                          >
+                            {formattedUnitPrice || '1.140'}
+                          </span>
+                          <input 
+                            id={`input-price-${item.id}`}
+                            type="text"
+                            inputMode="numeric"
+                            className="excel-cell-input"
+                            value={formattedUnitPrice}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^\d]/g, '');
+                              updateBillingItem(item.id, 'unitPrice', raw === '' ? '' : Number(raw));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const cur = Number(item.unitPrice) || 0;
+                                updateBillingItem(item.id, 'unitPrice', cur <= 0 ? 380 : cur + 380);
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const cur = Number(item.unitPrice) || 380;
+                                updateBillingItem(item.id, 'unitPrice', Math.max(0, cur - 380));
+                              }
+                            }}
+                            style={{
+                              gridArea: '1 / 1 / 2 / 2',
+                              textAlign: 'right',
+                              fontWeight: 'bold',
+                              width: '100%',
+                              minWidth: 0
+                            }}
+                            placeholder="380"
+                            title="Bước nhảy 380đ: bấm [+] hoặc mũi tên để nhảy 760đ, 1.140đ, 1.520đ..."
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
@@ -610,7 +585,8 @@ export const ExcelGrid = () => {
                             background: '#eff6ff',
                             borderRadius: '4px',
                             cursor: 'pointer',
-                            color: '#1d4ed8'
+                            color: '#1d4ed8',
+                            flexShrink: 0
                           }}
                         >
                           +
@@ -619,7 +595,7 @@ export const ExcelGrid = () => {
                     </td>
 
                     {/* Thành Tiền (Tự Động) */}
-                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-primary)', fontSize: '15px', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-primary)', fontSize: '15px', whiteSpace: 'nowrap', padding: '5px 8px' }}>
                       {formatVND(item.amount)}
                     </td>
 
@@ -650,9 +626,9 @@ export const ExcelGrid = () => {
         )}
       </div>
 
-      {/* Grand Total Summary Card */}
-      <div className="grand-total-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+      {/* Grand Total Summary Card - Fixed Single-Row */}
+      <div className="grand-total-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, overflowX: 'auto', gap: '16px' }}>
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, whiteSpace: 'nowrap' }}>
           <div>
             <div style={{ fontSize: '13px', color: 'var(--text-sub)' }}>Tổng Số Lớp Photo:</div>
             <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--text-bold)' }}>
@@ -669,7 +645,7 @@ export const ExcelGrid = () => {
         </div>
 
         {/* NÚT RÀ SOÁT & ĐỐI CHIẾU DOANH THU CHỐNG THẤT THOÁT */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <button
             type="button"
             onClick={() => setIsReconciliationModalOpen(true)}
@@ -681,9 +657,11 @@ export const ExcelGrid = () => {
               borderRadius: '12px',
               fontSize: '14px',
               fontWeight: 'bold',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: '9px',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
               boxShadow: '0 4px 14px rgba(30, 58, 138, 0.35)',
               border: '1.5px solid #3b82f6',
               cursor: 'pointer',
@@ -697,7 +675,7 @@ export const ExcelGrid = () => {
         </div>
 
         {/* Big Total */}
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right', whiteSpace: 'nowrap', flexShrink: 0 }}>
           <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-sub)', textTransform: 'uppercase' }}>
             TỔNG TIỀN PHOTO (TỰ ĐỘNG)
           </div>
