@@ -51,17 +51,18 @@ export const AdminDashboard = () => {
   // 3. New Class form state
   const [newClass, setNewClass] = useState({ className: '', studentCount: 40, homeroomTeacher: '', grade: '10' });
 
-  // Google Apps Script source code (v2.0 - Đồng bộ 2 chiều & Chống trùng lặp & Quản lý theo tuần)
+  // Google Apps Script source code (v2.0 - Đồng bộ 2 chiều & Chống trùng lặp & Quản lý theo tuần chuẩn 11 cột)
   const gasScriptCode = `/**
  * GOOGLE APPS SCRIPT - CƠ SỞ DỮ LIỆU TÍNH TIỀN PHOTO TRƯỜNG HỌC (PHIÊN BẢN 2.0)
  * ==============================================================================
  * TÍNH NĂNG NÂNG CẤP MỚI:
  * 1. ĐỒNG BỘ 2 CHIỀU: Hỗ trợ đọc dữ liệu từ Sheet về Web App (fetchBillingData).
  * 2. CƠ CHẾ UPSERT (CẬP NHẬT HOẶC THÊM MỚI): 
- *    - Tự động tìm Mã Giao Dịch (Cột A) để cập nhật nội dung (tên tài liệu, số lượng, trạng thái).
+ *    - Tự động tìm Mã Giao Dịch (Cột A) để cập nhật nội dung (tên tài liệu, số lượng, đơn giá).
  *    - Tuyệt đối KHÔNG sinh dòng trùng lặp khi lưu nhiều lần.
- * 3. QUẢN LÝ THEO TUẦN: Cột M lưu "Tuần Photo" và Tab CongNo_TheoTuan lưu công nợ theo tuần.
- * 4. TỰ ĐỘNG CHUẨN HÓA DÒNG TIÊU ĐỀ: Tự sửa dòng 1 và tự điền cột Tuần Photo nếu chưa có.
+ * 3. QUẢN LÝ THEO TUẦN: Cột K (Cột 11) lưu "Tuần Photo" và Tab CongNo_TheoTuan lưu công nợ theo tuần.
+ *    - Đã loại bỏ 2 cột "Trạng Thái Đơn" và "Ghi Chú" để bảng gọn gàng, tối ưu.
+ * 4. TỰ ĐỘNG CHUẨN HÓA DÒNG TIÊU ĐỀ: Tự động chuyển Tuần Photo từ cột M sang cột K và xóa cột thừa!
  * ==============================================================================
  */
 
@@ -105,8 +106,6 @@ function doPost(e) {
         var totalCopies = (Number(item.totalCopies) || (studentCount + extraCount));
         var unitPrice = Number(item.unitPrice) || 380;
         var amount = Number(item.amount) || (totalCopies * unitPrice);
-        var statusLabel = item.statusLabel || item.status || (item.isPaid ? "Đã thanh toán" : "Chờ gửi tài liệu");
-
         var weekLabel = item.week || data.currentWeek || "Tuần 1";
 
         var rowValues = [
@@ -120,15 +119,13 @@ function doPost(e) {
           totalCopies,
           unitPrice,
           amount,
-          statusLabel,
-          item.note || "",
           weekLabel
         ];
 
         // Nếu đã có ID trên Sheet -> CẬP NHẬT VÀO ĐÚNG DÒNG ĐÓ
         if (idToRowMap[cleanId]) {
           var targetRow = idToRowMap[cleanId];
-          sheet.getRange(targetRow, 1, 1, 13).setValues([rowValues]);
+          sheet.getRange(targetRow, 1, 1, 11).setValues([rowValues]);
           updatedCount++;
         } else {
           // Chưa có -> THÊM MỚI
@@ -194,6 +191,25 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 2. ACTION: XÓA DÒNG THEO ID
+    if (data.action === "deleteBillingItem") {
+      var sheet = ss.getSheetByName("NhatKy_Photo");
+      if (sheet && data.id) {
+        var lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+          for (var r = ids.length - 1; r >= 0; r--) {
+            if (ids[r][0] && ids[r][0].toString().trim() === data.id.toString().trim()) {
+              sheet.deleteRow(r + 2);
+              break;
+            }
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
       message: "Action không hợp lệ: " + data.action
@@ -220,19 +236,26 @@ function doGet(e) {
 
     if (sheet && sheet.getLastRow() > 1) {
       var lastRow = sheet.getLastRow();
-      var rows = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+      var lastCol = sheet.getLastColumn();
+      var readCols = Math.min(13, Math.max(11, lastCol));
+      var rows = sheet.getRange(2, 1, lastRow - 1, readCols).getValues();
 
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
-        if (!r[0] && !r[2]) continue;
+        if (!r[0] && !r[2]) continue; // Bỏ qua dòng trống
 
         var studentCount = Number(r[5]) || 0;
         var extraCount = Number(r[6]) || 0;
         var totalCopies = Number(r[7]) || (studentCount + extraCount);
         var unitPrice = Number(r[8]) || 380;
         var amount = Number(r[9]) || (totalCopies * unitPrice);
-        var statusText = r[10] ? r[10].toString() : "Chờ gửi tài liệu";
-        var weekText = (r[12] && r[12].toString().trim()) ? r[12].toString().trim() : "Tuần 1";
+        // Tuần Photo nằm ở Cột K (chỉ mục 10) hoặc nếu còn ở sheet cũ 13 cột thì nằm ở Cột M (chỉ mục 12)
+        var weekText = "Tuần 1";
+        if (r[10] && r[10].toString().trim().indexOf("Tuần") === 0) {
+          weekText = r[10].toString().trim();
+        } else if (r[12] && r[12].toString().trim().indexOf("Tuần") === 0) {
+          weekText = r[12].toString().trim();
+        }
 
         items.push({
           id: r[0] ? r[0].toString() : ("item-" + i),
@@ -245,10 +268,6 @@ function doGet(e) {
           totalCopies: totalCopies,
           unitPrice: unitPrice,
           amount: amount,
-          status: normalizeStatusKey(statusText),
-          statusLabel: statusText,
-          isPaid: statusText === "Đã thanh toán",
-          note: r[11] ? r[11].toString() : "",
           week: weekText
         });
       }
@@ -285,6 +304,16 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // LẤY TRỰC TIẾP URL SPREADSHEET ĐỂ MỞ NHANH
+  if (action === "getSpreadsheetUrl") {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      spreadsheetUrl: ss ? ss.getUrl() : "",
+      spreadsheetName: ss ? ss.getName() : ""
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // MẶC ĐỊNH: BÁO TRẠNG THÁI HOẠT ĐỘNG
   var sheet = ss ? ss.getSheetByName("NhatKy_Photo") : null;
   var rowCount = sheet ? Math.max(0, sheet.getLastRow() - 1) : 0;
   var fileName = ss ? ss.getName() : "Chưa xác định";
@@ -297,7 +326,7 @@ function doGet(e) {
   ).setMimeType(ContentService.MimeType.TEXT);
 }
 
-// Hàm hỗ trợ lấy hoặc tạo sheet NhatKy_Photo và tự động chuẩn hóa 13 cột tiêu đề
+// Hàm hỗ trợ lấy hoặc tạo sheet NhatKy_Photo và tự động chuẩn hóa 11 cột tiêu đề (bỏ Trạng Thái & Ghi Chú)
 function getOrCreatePhotoSheet(ss) {
   var sheet = ss.getSheetByName("NhatKy_Photo");
   if (!sheet) {
@@ -311,14 +340,22 @@ function getOrCreatePhotoSheet(ss) {
   }
 
   var headers = [
-    "Mã Giao Dịch", "Thời Gian Cập Nhật", "Giáo Viên", "Lớp", 
-    "Môn Học / Nội Dung", "Sĩ Số", "Số Lượng Lẻ", "Tổng Bản In", 
-    "Đơn Giá (VNĐ)", "Thành Tiền (VNĐ)", "Trạng Thái Đơn", "Ghi Chú", "Tuần Photo"
+    "Mã Giao Dịch",
+    "Thời Gian Cập Nhật",
+    "Giáo Viên",
+    "Lớp",
+    "Môn Học / Nội Dung",
+    "Sĩ Số",
+    "Số Lượng Lẻ",
+    "Tổng Bản In",
+    "Đơn Giá (VNĐ)",
+    "Thành Tiền (VNĐ)",
+    "Tuần Photo"
   ];
 
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
-    sheet.getRange(1, 1, 1, 13)
+    sheet.getRange(1, 1, 1, 11)
          .setFontWeight("bold")
          .setBackground("#1b5ebe")
          .setFontColor("#ffffff")
@@ -326,43 +363,49 @@ function getOrCreatePhotoSheet(ss) {
     sheet.setFrozenRows(1);
     sheet.setRowHeight(1, 35);
   } else {
-    var firstCell = sheet.getRange(1, 1).getValue().toString().trim();
-    // Nếu dòng 1 bị chèn nhầm dữ liệu đơn photo (chứa item-...) hoặc tiêu đề không đúng
-    if (firstCell.indexOf("item-") === 0 || firstCell !== "Mã Giao Dịch") {
-      sheet.insertRowBefore(1);
-      sheet.getRange(1, 1, 1, 13).setValues([headers]);
-      sheet.getRange(1, 1, 1, 13)
-           .setFontWeight("bold")
-           .setBackground("#1b5ebe")
-           .setFontColor("#ffffff")
-           .setHorizontalAlignment("center");
-      sheet.setFrozenRows(1);
-      sheet.setRowHeight(1, 35);
-    } else {
-      var col13 = sheet.getRange(1, 13).getValue().toString().trim();
-      if (!col13 || col13 !== "Tuần Photo") {
-        sheet.getRange(1, 13).setValue("Tuần Photo")
-             .setFontWeight("bold")
-             .setBackground("#1b5ebe")
-             .setFontColor("#ffffff")
-             .setHorizontalAlignment("center");
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+
+    // Kiểm tra nếu sheet cũ đang có cột Tuần Photo ở cột M (13) hoặc cột K đang là Trạng Thái Đơn
+    var headerK = sheet.getRange(1, 11).getValue().toString().trim();
+    var headerM = lastCol >= 13 ? sheet.getRange(1, 13).getValue().toString().trim() : "";
+
+    if (headerM === "Tuần Photo" || headerK === "Trạng Thái Đơn") {
+      if (lastRow > 1 && headerM === "Tuần Photo") {
+        // Sao chép toàn bộ giá trị Tuần Photo từ cột M (13) sang cột K (11)
+        var weekValues = sheet.getRange(2, 13, lastRow - 1, 1).getValues();
+        sheet.getRange(2, 11, lastRow - 1, 1).setValues(weekValues);
+      }
+      // Xóa hoàn toàn nội dung và định dạng thừa ở cột L (12) và cột M (13) trở đi
+      if (sheet.getMaxColumns() >= 12) {
+        sheet.getRange(1, 12, Math.max(1, lastRow), sheet.getMaxColumns() - 11).clear();
       }
     }
+
+    // Đặt lại dòng tiêu đề chuẩn 11 cột tại dòng 1
+    sheet.getRange(1, 1, 1, 11).setValues([headers]);
+    sheet.getRange(1, 1, 1, 11)
+         .setFontWeight("bold")
+         .setBackground("#1b5ebe")
+         .setFontColor("#ffffff")
+         .setHorizontalAlignment("center");
+    sheet.setFrozenRows(1);
+    sheet.setRowHeight(1, 35);
   }
 
-  // Tự động điền "Tuần 1" vào cột M cho các dòng cũ nếu đang bị trống
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    var colM = sheet.getRange(2, 13, lastRow - 1, 1).getValues();
+  // Tự động điền "Tuần 1" vào cột K (cột 11) cho các dòng cũ nếu đang bị trống
+  var curLastRow = sheet.getLastRow();
+  if (curLastRow > 1) {
+    var colK = sheet.getRange(2, 11, curLastRow - 1, 1).getValues();
     var needUpdate = false;
-    for (var r = 0; r < colM.length; r++) {
-      if (!colM[r][0] || colM[r][0].toString().trim() === "") {
-        colM[r][0] = "Tuần 1";
+    for (var r = 0; r < colK.length; r++) {
+      if (!colK[r][0] || colK[r][0].toString().trim() === "") {
+        colK[r][0] = "Tuần 1";
         needUpdate = true;
       }
     }
     if (needUpdate) {
-      sheet.getRange(2, 13, lastRow - 1, 1).setValues(colM);
+      sheet.getRange(2, 11, curLastRow - 1, 1).setValues(colK);
     }
   }
 
@@ -370,14 +413,14 @@ function getOrCreatePhotoSheet(ss) {
 }
 
 /**
- * HÀM SỬA TIÊU ĐỀ & ĐIỀN CỘT TUẦN PHOTO NGAY LẬP TỨC:
+ * HÀM SỬA BẢNG: BỎ CỘT TRẠNG THÁI & GHI CHÚ, ĐƯA TUẦN PHOTO VỀ CỘT K
  * Bạn có thể chọn hàm này trên menu Google Apps Script và bấm "Chạy" (Run).
- * Sheet sẽ lập tức chèn dòng 1 thành tiêu đề chuẩn 13 cột và điền cột M "Tuần Photo"!
+ * Sheet sẽ lập tức chuyển Tuần Photo về Cột K, xóa sạch Cột L và M!
  */
 function chuanHoaVaDienTuan() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getOrCreatePhotoSheet(ss);
-  Logger.log("Đã chuẩn hóa tiêu đề 13 cột và điền cột M (Tuần Photo) thành công!");
+  Logger.log("Đã loại bỏ cột Trạng thái đơn & Ghi chú, đưa Tuần Photo về Cột K thành công!");
 }
 
 function getOrCreateDebtSheet(ss) {
@@ -414,7 +457,7 @@ function cleanDuplicates() {
   if (!sheet) return;
   var lastRow = sheet.getLastRow();
   if (lastRow <= 2) return;
-  var data = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+  var data = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
   var seenIds = {};
   var rowsToDelete = [];
   for (var i = 0; i < data.length; i++) {
