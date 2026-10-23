@@ -11,7 +11,8 @@ import {
   HardDrive,
   Wifi,
   WifiOff,
-  Download
+  Download,
+  Save
 } from 'lucide-react';
 import { ReconciliationModal } from './ReconciliationModal';
 
@@ -194,7 +195,7 @@ export const ExcelGrid = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Nút Lưu CSDL Song Song trực tiếp tại Bảng tính */}
+          {/* Nút 1: Lưu CSDL Song Song (File Excel Máy + Google Sheets) */}
           <button 
             onClick={() => syncToGoogleSheets(false)}
             className="neu-btn neu-btn-success"
@@ -206,10 +207,33 @@ export const ExcelGrid = () => {
               alignItems: 'center', 
               gap: '6px' 
             }}
-            title={`Lưu song song toàn bộ ${displayedItems.length} dòng của ${currentWeek} vào file Excel máy tính và Google Sheets`}
+            title={`Lưu đồng thời toàn bộ ${displayedItems.length} dòng của ${currentWeek} vào cả 2 nơi: File Excel máy tính và Google Sheets`}
           >
             <CloudUpload size={14} />
-            <span>Lưu CSDL ({currentWeek})</span>
+            <span>Lưu Song Song (Máy & Sheet)</span>
+          </button>
+
+          {/* Nút 2: Lưu riêng File Excel Máy Tính (Không cần mạng) */}
+          <button 
+            type="button"
+            onClick={() => saveToLocalExcelFile(true)}
+            className="neu-btn"
+            style={{ 
+              fontSize: '13px', 
+              padding: '6px 13px', 
+              color: '#1e40af', 
+              background: '#eff6ff', 
+              border: '1.5px solid #93c5fd', 
+              fontWeight: '700', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              cursor: 'pointer' 
+            }}
+            title="Ghi trực tiếp ngay lập tức vào file Excel trên máy (e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx) hoàn toàn không cần Internet"
+          >
+            <Save size={14} color="#2563eb" />
+            <span>Lưu Excel Máy</span>
           </button>
 
           {/* Nút Mở File Excel Máy Tính trực tiếp */}

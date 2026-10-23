@@ -13,7 +13,8 @@ import {
   ExternalLink,
   RotateCcw,
   FolderOpen,
-  WifiOff
+  WifiOff,
+  Save
 } from 'lucide-react';
 
 export const Navbar = () => {
@@ -32,6 +33,7 @@ export const Navbar = () => {
     clearBillingGrid,
     totalClassDebts,
     openLocalExcelFile,
+    saveToLocalExcelFile,
     isOnline,
     localExcelStatus
   } = useApp();
@@ -167,11 +169,31 @@ export const Navbar = () => {
           <button 
             onClick={syncToGoogleSheets}
             className="neu-btn neu-btn-success"
-            title="Lưu song song vào File Excel trên máy tính (CSDL_PHOTO_LOCAL.xlsx) và Google Sheets"
+            title="Lưu song song đồng thời vào cả 2 nơi: File Excel trên máy tính (CSDL_PHOTO_LOCAL.xlsx) và Google Sheets"
             style={{ fontSize: '13px', padding: '7px 15px', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
             <CloudUpload size={15} />
-            <span>Lưu CSDL</span>
+            <span>Lưu Song Song</span>
+          </button>
+
+          {/* 6.1 Lưu riêng vào File Excel máy tính */}
+          <button 
+            onClick={() => saveToLocalExcelFile(true)}
+            className="neu-btn"
+            title="Ghi trực tiếp ngay lập tức vào file Excel trên máy tính (e:\APP_PHOTO\CSDL_PHOTO_LOCAL.xlsx) hoàn toàn không cần Internet"
+            style={{ 
+              fontSize: '13px', 
+              padding: '7px 12px', 
+              whiteSpace: 'nowrap', 
+              flexShrink: 0,
+              color: '#1e40af',
+              backgroundColor: '#eff6ff',
+              border: '1.5px solid #93c5fd',
+              fontWeight: '700'
+            }}
+          >
+            <Save size={15} color="#2563eb" />
+            <span>Lưu Excel Máy</span>
           </button>
 
           {/* 6.5 Mở file Excel máy tính trực tiếp */}
