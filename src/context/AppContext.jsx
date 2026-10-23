@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   DEFAULT_DEPARTMENTS,
@@ -699,9 +699,22 @@ export const AppProvider = ({ children }) => {
     );
   };
 
-  // Remove single row
+  // Remove single row - Đồng thời gửi lệnh xóa trực tiếp tới Google Sheets
   const removeBillingItem = (id) => {
     setBillingItems(prev => prev.filter(i => i.id !== id));
+
+    const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
+    if (targetUrl && targetUrl.startsWith('http') && id) {
+      fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'deleteBillingItem',
+          id: id
+        })
+      }).catch(err => console.error('Lỗi khi xóa dòng trên Google Sheets:', err));
+    }
   };
 
   // Clear entire billing grid and debts (với cơ chế bảo vệ doanh thu)
@@ -761,22 +774,31 @@ export const AppProvider = ({ children }) => {
   };
 
   // Sync to Google Sheets Web App (Đồng bộ chuẩn xác theo tuần - bảo đảm đúng số dòng)
-  const syncToGoogleSheets = async () => {
+  const syncToGoogleSheets = async (isAutoSync = false) => {
     // Chỉ lấy các dòng thuộc tuần hiện tại (currentWeek)
     const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
 
     if (currentWeekItems.length === 0 && Object.keys(classDebts).length === 0) {
-      alert(`Bảng tính và danh sách công nợ của ${currentWeek} hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.`);
+      if (!isAutoSync) {
+        alert(`Bảng tính và danh sách công nợ của ${currentWeek} hiện đang trống, chưa có dữ liệu để lưu vào Google Sheets.`);
+      }
       return;
     }
 
     const targetUrl = settings.gasWebAppUrl || DEFAULT_SETTINGS.gasWebAppUrl;
     if (!targetUrl || !targetUrl.startsWith('http')) {
-      alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+      if (!isAutoSync) {
+        alert('Chưa có URL Google Apps Script. Vui lòng cấu hình trong Tab 2: Dashboard Admin & CSDL.');
+      }
       return;
     }
 
-    setSyncStatus({ status: 'syncing', message: `Đang đồng bộ ${currentWeekItems.length} đơn photo & công nợ (${currentWeek}) lên Google Sheets...` });
+    setSyncStatus({ 
+      status: 'syncing', 
+      message: isAutoSync
+        ? `Đang tự động lưu ${currentWeekItems.length} đơn photo (${currentWeek}) lên Google Sheets...`
+        : `Đang đồng bộ ${currentWeekItems.length} đơn photo & công nợ (${currentWeek}) lên Google Sheets...` 
+    });
     
     try {
       // Chuẩn bị dữ liệu công nợ các lớp của tuần này (Lưu theo tuần trên CSDL)
@@ -829,20 +851,50 @@ export const AppProvider = ({ children }) => {
 
       setSyncStatus({ 
         status: 'success', 
-        message: `Đã lưu & đồng bộ chuẩn xác ${currentWeekItems.length} mục đơn photo của ${currentWeek} lên Google Sheets!` 
+        message: isAutoSync
+          ? `Đã tự động lưu thành công ${currentWeekItems.length} đơn photo (${currentWeek}) lên Google Sheets!`
+          : `Đã lưu & đồng bộ chuẩn xác ${currentWeekItems.length} mục đơn photo của ${currentWeek} lên Google Sheets!` 
       });
     } catch (err) {
       console.error(err);
-      setSyncStatus({
-        status: 'error',
-        message: 'Lỗi kết nối khi gửi lên Google Drive. Vui lòng kiểm tra lại đường truyền mạng.'
-      });
+      if (!isAutoSync) {
+        setSyncStatus({
+          status: 'error',
+          message: 'Lỗi kết nối khi gửi lên Google Drive. Vui lòng kiểm tra lại đường truyền mạng.'
+        });
+      }
     }
 
     setTimeout(() => {
       setSyncStatus({ status: 'idle', message: '' });
-    }, 4500);
+    }, 3500);
   };
+
+  // Tự động lưu lên Google Sheets (Auto-Sync với Debounce 2 giây) khi người dùng sửa dữ liệu
+  const autoSaveTimerRef = useRef(null);
+
+  useEffect(() => {
+    // Chỉ kích hoạt tự động lưu nếu có ít nhất 1 dòng của tuần hiện tại chưa được lưu (isSynced === false)
+    const hasUnsavedInCurrentWeek = billingItems.some(
+      item => (item.week || currentWeek) === currentWeek && item.isSynced === false
+    );
+
+    if (!hasUnsavedInCurrentWeek) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      syncToGoogleSheets(true); // Tự động lưu ngầm không gây gián đoạn
+    }, 2000);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [billingItems, currentWeek, classDebts]);
 
   // Tải toàn bộ dữ liệu đơn photo từ Google Sheets trên Drive về Web App (Đồng bộ chiều về)
   const fetchFromGoogleSheets = async () => {

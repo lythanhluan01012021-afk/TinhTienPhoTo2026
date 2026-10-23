@@ -93,10 +93,17 @@ function doPost(e) {
       // BƯỚC 1: XÓA CÁC DÒNG CỦA targetWeek ĐÃ BỊ XÓA TRÊN WEB APP
       // (Duyệt ngược từ dưới lên để không làm nhảy chỉ mục dòng)
       if (lastRow > 1) {
-        var existingData = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+        var readCols = Math.min(13, Math.max(11, sheet.getLastColumn()));
+        var existingData = sheet.getRange(2, 1, lastRow - 1, readCols).getValues();
         for (var r = existingData.length - 1; r >= 0; r--) {
           var rowId = existingData[r][0] ? existingData[r][0].toString().trim() : "";
-          var rowWeek = existingData[r][10] ? existingData[r][10].toString().trim() : "";
+          // Đọc tuần ở Cột K (chỉ mục 10) hoặc Cột M (chỉ mục 12 nếu còn là sheet cũ)
+          var rowWeek = "";
+          if (existingData[r][10] && existingData[r][10].toString().trim().indexOf("Tuần") === 0) {
+            rowWeek = existingData[r][10].toString().trim();
+          } else if (existingData[r][12] && existingData[r][12].toString().trim().indexOf("Tuần") === 0) {
+            rowWeek = existingData[r][12].toString().trim();
+          }
           var rowNumber = r + 2;
 
           // Nếu dòng này thuộc targetWeek đang lưu nhưng không có trong danh sách gửi lên -> Xóa khỏi Sheet
