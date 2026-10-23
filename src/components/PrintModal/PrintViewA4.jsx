@@ -76,19 +76,21 @@ export const PrintViewA4 = () => {
   const [showSignatures, setShowSignatures] = useState(false); // Mặc định tắt để tiết kiệm giấy in theo yêu cầu
   const [compactMode, setCompactMode] = useState(true); // Mặc định gom nhiều lớp trên cùng 1 trang A4 để tiết kiệm giấy tối đa
 
-  // Danh sách các lớp có đơn photo hoặc có nợ
+  // Danh sách các lớp có đơn photo hoặc có nợ trong tuần đang chọn
   const availableClasses = useMemo(() => {
+    const currentWeekItems = billingItems.filter(i => (i.week || currentWeek) === currentWeek);
     const list = Array.from(new Set([
-      ...billingItems.map(i => i.className).filter(Boolean),
+      ...currentWeekItems.map(i => i.className).filter(Boolean),
       ...Object.keys(classDebts || {}).filter(c => (classDebts[c]?.amount || 0) > 0)
     ]));
     return list.sort();
-  }, [billingItems, classDebts]);
+  }, [billingItems, classDebts, currentWeek]);
 
-  // Gom nhóm dữ liệu theo lớp
+  // Gom nhóm dữ liệu theo lớp cho tuần đang chọn
   const classGroups = useMemo(() => {
     const map = {};
-    billingItems.forEach(item => {
+    const currentWeekItems = billingItems.filter(i => (i.week || currentWeek) === currentWeek);
+    currentWeekItems.forEach(item => {
       const cls = item.className || 'Khác';
       if (!map[cls]) {
         map[cls] = {
@@ -122,19 +124,20 @@ export const PrintViewA4 = () => {
       return Object.values(map).filter(g => g.className === printClassFilter);
     }
     return Object.values(map).sort((a, b) => a.className.localeCompare(b.className));
-  }, [billingItems, printClassFilter, classDebts]);
+  }, [billingItems, printClassFilter, classDebts, currentWeek]);
 
-  // Tổng cộng toàn trường
+  // Tổng cộng toàn trường cho tuần đang chọn
   const grandTotal = useMemo(() => {
     let copies = 0;
     let amount = 0;
-    billingItems.forEach(item => {
+    const currentWeekItems = billingItems.filter(i => (i.week || currentWeek) === currentWeek);
+    currentWeekItems.forEach(item => {
       const c = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
       copies += c;
       amount += c * (Number(item.unitPrice) || 0);
     });
     return { copies, amount };
-  }, [billingItems]);
+  }, [billingItems, currentWeek]);
 
   const formatVND = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v || 0);
 

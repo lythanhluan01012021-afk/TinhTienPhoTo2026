@@ -51,12 +51,14 @@ export const GroupingView = () => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
   };
 
-  // Gom nhóm dữ liệu theo từng lớp (Bao gồm lớp có đơn photo HOẶC đang có nợ cũ)
+  // Gom nhóm dữ liệu theo từng lớp (Bao gồm lớp có đơn photo HOẶC đang có nợ cũ trong tuần này)
   const groupedData = useMemo(() => {
     const map = {};
 
-    // 1. Thêm tất cả các dòng photo hiện có trong tuần này
-    billingItems.forEach(item => {
+    // 1. Thêm tất cả các dòng photo hiện có trong tuần này (currentWeek)
+    const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
+
+    currentWeekItems.forEach(item => {
       const cls = item.className || 'Khác';
       if (!map[cls]) {
         map[cls] = {
@@ -88,17 +90,18 @@ export const GroupingView = () => {
 
     // Sắp xếp tên lớp theo thứ tự A-Z
     return Object.values(map).sort((a, b) => a.className.localeCompare(b.className));
-  }, [billingItems, classDebts]);
+  }, [billingItems, classDebts, currentWeek]);
 
   // Danh sách các lớp ĐÃ ĐƯỢC CHỌN và nhập tiền nợ/thiếu (Chỉ có dữ liệu khi người dùng chọn và lưu)
   const debtClassesList = useMemo(() => {
     const keys = Object.keys(classDebts || {}).filter(cls => (Number(classDebts[cls]?.amount) || 0) > 0);
+    const currentWeekItems = billingItems.filter(item => (item.week || currentWeek) === currentWeek);
     
     return keys.map(cls => {
       const debt = classDebts[cls];
       const debtAmount = Number(debt?.amount) || 0;
       
-      const classItems = billingItems.filter(item => (item.className || '').toLowerCase() === cls.toLowerCase());
+      const classItems = currentWeekItems.filter(item => (item.className || '').toLowerCase() === cls.toLowerCase());
       let photoCopies = 0;
       let photoAmount = 0;
       classItems.forEach(item => {
@@ -118,7 +121,7 @@ export const GroupingView = () => {
         updatedAt: debt?.updatedAt || ''
       };
     }).sort((a, b) => a.className.localeCompare(b.className));
-  }, [classDebts, billingItems]);
+  }, [classDebts, billingItems, currentWeek]);
 
   // Dữ liệu hiển thị trong bảng: Nếu ở chế độ DEBT_ONLY thì CHỈ lấy các lớp có nợ
   const displayedGroups = useMemo(() => {

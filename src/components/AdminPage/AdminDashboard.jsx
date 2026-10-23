@@ -154,48 +154,71 @@ function doGet(e) {
 
   if (action === "fetchBillingData" || action === "getBillingData") {
     var sheet = ss ? ss.getSheetByName("NhatKy_Photo") : null;
-    if (!sheet || sheet.getLastRow() <= 1) {
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", items: [], count: 0 }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    var lastRow = sheet.getLastRow();
-    var rows = sheet.getRange(2, 1, lastRow - 1, 12).getValues();
     var items = [];
 
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      if (!r[0] && !r[2]) continue;
+    if (sheet && sheet.getLastRow() > 1) {
+      var lastRow = sheet.getLastRow();
+      var rows = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
 
-      var studentCount = Number(r[5]) || 0;
-      var extraCount = Number(r[6]) || 0;
-      var totalCopies = Number(r[7]) || (studentCount + extraCount);
-      var unitPrice = Number(r[8]) || 380;
-      var amount = Number(r[9]) || (totalCopies * unitPrice);
-      var statusText = r[10] ? r[10].toString() : "Chờ gửi tài liệu";
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        if (!r[0] && !r[2]) continue;
 
-      items.push({
-        id: r[0] ? r[0].toString() : ("item-" + i),
-        timestamp: r[1],
-        teacherName: r[2] ? r[2].toString() : "",
-        className: r[3] ? r[3].toString() : "",
-        subject: r[4] ? r[4].toString() : "",
-        studentCount: studentCount,
-        extraCount: extraCount,
-        totalCopies: totalCopies,
-        unitPrice: unitPrice,
-        amount: amount,
-        status: normalizeStatusKey(statusText),
-        statusLabel: statusText,
-        isPaid: statusText === "Đã thanh toán",
-        note: r[11] ? r[11].toString() : ""
-      });
+        var studentCount = Number(r[5]) || 0;
+        var extraCount = Number(r[6]) || 0;
+        var totalCopies = Number(r[7]) || (studentCount + extraCount);
+        var unitPrice = Number(r[8]) || 380;
+        var amount = Number(r[9]) || (totalCopies * unitPrice);
+        var statusText = r[10] ? r[10].toString() : "Chờ gửi tài liệu";
+        var weekText = (r[12] && r[12].toString().trim()) ? r[12].toString().trim() : "Tuần 1";
+
+        items.push({
+          id: r[0] ? r[0].toString() : ("item-" + i),
+          timestamp: r[1],
+          teacherName: r[2] ? r[2].toString() : "",
+          className: r[3] ? r[3].toString() : "",
+          subject: r[4] ? r[4].toString() : "",
+          studentCount: studentCount,
+          extraCount: extraCount,
+          totalCopies: totalCopies,
+          unitPrice: unitPrice,
+          amount: amount,
+          status: normalizeStatusKey(statusText),
+          statusLabel: statusText,
+          isPaid: statusText === "Đã thanh toán",
+          note: r[11] ? r[11].toString() : "",
+          week: weekText
+        });
+      }
+    }
+
+    var debts = {};
+    var debtSheet = ss ? ss.getSheetByName("CongNo_TheoTuan") : null;
+    if (debtSheet && debtSheet.getLastRow() > 1) {
+      var dRows = debtSheet.getRange(2, 1, debtSheet.getLastRow() - 1, 9).getValues();
+      for (var d = 0; d < dRows.length; d++) {
+        var dr = dRows[d];
+        var dWeek = dr[1] ? dr[1].toString().trim() : "Tuần 1";
+        var dClass = dr[2] ? dr[2].toString().trim() : "";
+        var dAmount = Number(dr[4]) || 0;
+        var dNote = dr[7] ? dr[7].toString().trim() : "";
+        var dDate = dr[8] ? dr[8].toString().trim() : "";
+        if (dClass && dAmount > 0) {
+          if (!debts[dWeek]) debts[dWeek] = {};
+          debts[dWeek][dClass] = {
+            amount: dAmount,
+            note: dNote,
+            updatedAt: dDate
+          };
+        }
+      }
     }
 
     return ContentService.createTextOutput(JSON.stringify({ 
       status: "success", 
       items: items, 
       count: items.length,
+      debts: debts,
       spreadsheetUrl: ss ? ss.getUrl() : ""
     })).setMimeType(ContentService.MimeType.JSON);
   }

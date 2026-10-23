@@ -16,12 +16,17 @@ export const ExcelGrid = () => {
     totalClassDebts,
     classDebts,
     setIsGroupedView,
-    currentWeek
+    currentWeek,
+    setCurrentWeek,
+    availableWeeks
   } = useApp();
 
-  const displayedItems = billingItems;
+  // Lọc các dòng photo thuộc về tuần đang chọn (currentWeek)
+  const displayedItems = useMemo(() => {
+    return billingItems.filter(item => (item.week || currentWeek) === currentWeek);
+  }, [billingItems, currentWeek]);
 
-  // Grand Total Calculations
+  // Grand Total Calculations cho riêng tuần đang chọn
   const totals = useMemo(() => {
     let totalCopies = 0;
     let totalAmount = 0;
@@ -29,7 +34,7 @@ export const ExcelGrid = () => {
     let totalUnpaid = 0;
     const uniqueClasses = new Set();
 
-    billingItems.forEach(item => {
+    displayedItems.forEach(item => {
       const copies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
       const amount = copies * (Number(item.unitPrice) || 0);
       totalCopies += copies;
@@ -49,7 +54,7 @@ export const ExcelGrid = () => {
       totalPaid,
       totalUnpaid
     };
-  }, [billingItems]);
+  }, [displayedItems]);
 
   // Format currency VNĐ
   const formatVND = (value) => {
@@ -82,12 +87,46 @@ export const ExcelGrid = () => {
               BẢNG TÍNH TIỀN PHOTO ({currentWeek})
             </h2>
             <p style={{ fontSize: '12.5px', color: 'var(--text-sub)', margin: '2px 0 0 0' }}>
-              Hiện có {billingItems.length} dòng dữ liệu của {currentWeek} • Nhấp vào ô để sửa trực tiếp • Tự động tính Thành tiền
+              Hiện có {displayedItems.length} dòng dữ liệu của {currentWeek} • Nhấp vào ô để sửa trực tiếp • Tự động tính Thành tiền
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Bộ chọn Tuần trực tiếp trên Bảng Tính */}
+          <div 
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              background: '#eff6ff', 
+              padding: '4px 10px', 
+              borderRadius: '8px', 
+              border: '1.5px solid #93c5fd' 
+            }}
+          >
+            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1d4ed8' }}>📅 Tuần:</span>
+            <select
+              value={currentWeek}
+              onChange={(e) => setCurrentWeek(e.target.value)}
+              style={{
+                padding: '4px 8px',
+                borderRadius: '6px',
+                border: '1px solid #93c5fd',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                color: '#1d4ed8',
+                background: '#ffffff',
+                cursor: 'pointer'
+              }}
+              title="Chọn tuần làm việc để xem hoặc chỉnh sửa đơn photo"
+            >
+              {availableWeeks.map(w => (
+                <option key={w} value={w}>{w}</option>
+              ))}
+            </select>
+          </div>
+
           {totalClassDebts > 0 ? (
             <button 
               onClick={() => setIsGroupedView(true)}

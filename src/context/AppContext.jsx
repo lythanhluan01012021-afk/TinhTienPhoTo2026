@@ -711,7 +711,7 @@ export const AppProvider = ({ children }) => {
     } else if (!window.confirm(`Bạn có chắc chắn muốn làm mới (xóa toàn bộ bảng tính và công nợ của ${currentWeek})?`)) {
       return;
     }
-    setBillingItems([]);
+    setBillingItems(prev => prev.filter(i => (i.week || currentWeek) !== currentWeek));
     clearAllClassDebts();
   };
 
@@ -866,11 +866,29 @@ export const AppProvider = ({ children }) => {
         if (data.items.length === 0) {
           setSyncStatus({ status: 'info', message: 'Google Sheets hiện chưa có dữ liệu đơn photo nào.' });
         } else {
-          const loadedItems = data.items.map(item => ({
-            ...item,
-            status: item.status || (item.isPaid ? 'DA_THANH_TOAN' : 'CHO_TAI_LIEU'),
-            isSynced: true
-          }));
+          const loadedWeeks = new Set(availableWeeks);
+          const loadedItems = data.items.map(item => {
+            const w = item.week || 'Tuần 1';
+            loadedWeeks.add(w);
+            return {
+              ...item,
+              week: w,
+              status: item.status || (item.isPaid ? 'DA_THANH_TOAN' : 'CHO_TAI_LIEU'),
+              isSynced: true
+            };
+          });
+
+          // Cập nhật danh sách tuần nếu có tuần mới từ Google Sheets
+          setAvailableWeeks(Array.from(loadedWeeks));
+
+          // Cập nhật công nợ các tuần nếu có dữ liệu debts trả về
+          if (data.debts && typeof data.debts === 'object' && Object.keys(data.debts).length > 0) {
+            setWeeklyDebts(prev => ({
+              ...prev,
+              ...data.debts
+            }));
+          }
+
           setBillingItems(loadedItems);
           setSyncStatus({ 
             status: 'success', 
