@@ -131,79 +131,20 @@ function doPost(e) {
     }
 
     // =========================================================================
-    // 3. ACTION: LƯU SỔ QUỸ THU - CHI (SoQuy_ThuChi)
+    // 3. ACTION: LƯU SỔ QUỸ THU - CHI (SoQuy_ThuChi) VÀ TỰ ĐỘNG THỐNG KÊ TỔNG CHI, CÒN LẠI CUỐI MỖI TUẦN
     // =========================================================================
     if (data.action === "saveCashflow") {
       var cashflowSheet = getOrCreateCashflowSheet(ss);
       var records = data.records || [];
-      var syncAll = data.syncAll !== false; // Mặc định đồng bộ toàn phần
 
-      var lastRow = cashflowSheet.getLastRow();
-      var incomingIds = {};
-      records.forEach(function(r) {
-        if (r.id) incomingIds[r.id.toString().trim()] = true;
-      });
-
-      // Nếu syncAll = true, xóa các phiếu trên sheet không còn trong danh sách gửi lên
-      if (syncAll && lastRow > 1) {
-        var existingIds = cashflowSheet.getRange(2, 1, lastRow - 1, 1).getValues();
-        for (var r = existingIds.length - 1; r >= 0; r--) {
-          var rowId = existingIds[r][0] ? existingIds[r][0].toString().trim() : "";
-          if (rowId && !incomingIds[rowId]) {
-            cashflowSheet.deleteRow(r + 2);
-          }
-        }
-      }
-
-      // Upsert từng giao dịch thu / chi
-      var curLast = cashflowSheet.getLastRow();
-      var idMap = {};
-      if (curLast > 1) {
-        var cIds = cashflowSheet.getRange(2, 1, curLast - 1, 1).getValues();
-        for (var i = 0; i < cIds.length; i++) {
-          if (cIds[i][0]) idMap[cIds[i][0].toString().trim()] = i + 2;
-        }
-      }
-
-      var cfUpdated = 0;
-      var cfInserted = 0;
-
-      records.forEach(function(r) {
-        if (!r.id) return;
-        var cleanId = r.id.toString().trim();
-        var numAmount = Number(r.amount) || 0;
-        var rType = (r.type || "THU").toString().toUpperCase().trim();
-
-        var rowValues = [
-          cleanId,                  // Cột A: Mã Phiếu
-          r.date || "",             // Cột B: Ngày Ghi Sổ
-          rType,                    // Cột C: Loại (THU / CHI)
-          r.category || "",         // Cột D: Hạng Mục Giao Dịch
-          numAmount,                // Cột E: Số Tiền (VNĐ)
-          r.payer || "",            // Cột F: Người Giao Dịch
-          r.note || "",             // Cột G: Ghi Chú
-          timestamp                 // Cột H: Thời Gian Cập Nhật
-        ];
-
-        if (idMap[cleanId]) {
-          cashflowSheet.getRange(idMap[cleanId], 1, 1, 8).setValues([rowValues]);
-          cfUpdated++;
-        } else {
-          cashflowSheet.appendRow(rowValues);
-          idMap[cleanId] = cashflowSheet.getLastRow();
-          cfInserted++;
-        }
-      });
-
-      // Định dạng tiền tệ VNĐ và màu sắc cho sổ quỹ
-      formatCashflowSheet(cashflowSheet);
+      // Render toàn bộ giao dịch theo tuần kèm dòng TỔNG THU, TỔNG CHI, CÒN LẠI ở cuối mỗi tuần
+      var result = renderCashflowWithWeeklyTotals(cashflowSheet, records, timestamp);
 
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
-        message: "Đã lưu Sổ Quỹ Thu Chi thành công! Đã cập nhật " + cfUpdated + " phiếu và thêm mới " + cfInserted + " phiếu.",
-        updatedCount: cfUpdated,
-        insertedCount: cfInserted,
+        message: "Đã lưu Sổ Quỹ Thu Chi thành công! Đã tự động thống kê Tổng Chi và Còn Lại ở dòng cuối mỗi tuần.",
         totalRecords: records.length,
+        weeksCount: result.weeksCount,
         spreadsheetUrl: ss ? ss.getUrl() : ""
       })).setMimeType(ContentService.MimeType.JSON);
     }
@@ -308,6 +249,7 @@ function doGet(e) {
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
         if (!r[0] && !r[2]) continue;
+        if (r[0] && r[0].toString().indexOf("[TỔNG") === 0) continue;
 
         var studentCount = Number(r[5]) || 0;
         var extraCount = Number(r[6]) || 0;
@@ -361,7 +303,7 @@ function doGet(e) {
       }
     }
 
-    // 3. Đọc SoQuy_ThuChi
+    // 3. Đọc SoQuy_ThuChi (Lọc bỏ các dòng thống kê tổng kết)
     var cashflow = [];
     var cfSheet = ss ? ss.getSheetByName("SoQuy_ThuChi") : null;
     if (cfSheet && cfSheet.getLastRow() > 1) {
@@ -369,10 +311,21 @@ function doGet(e) {
       for (var c = 0; c < cfRows.length; c++) {
         var cfr = cfRows[c];
         if (!cfr[0] && !cfr[3]) continue;
+        var rId = cfr[0] ? cfr[0].toString().trim() : "";
+        var rType = cfr[2] ? cfr[2].toString().toUpperCase().trim() : "";
+        var rCat = cfr[3] ? cfr[3].toString().toUpperCase().trim() : "";
+        
+        // Bỏ qua dòng thống kê tổng kết tuần
+        if (rId.indexOf("[TỔNG") === 0 || rId.indexOf("[CÒN LẠI") === 0 || 
+            rCat.indexOf("TỔNG CHI") !== -1 || rCat.indexOf("CÒN LẠI") !== -1 ||
+            (rType !== "THU" && rType !== "CHI")) {
+          continue;
+        }
+
         cashflow.push({
-          id: cfr[0] ? cfr[0].toString() : ("CF-" + c),
+          id: rId ? rId : ("CF-" + c),
           date: cfr[1] ? formatDateForWeb(cfr[1]) : "",
-          type: (cfr[2] ? cfr[2].toString().toUpperCase() : "THU"),
+          type: rType,
           category: cfr[3] ? cfr[3].toString() : "",
           amount: Number(cfr[4]) || 0,
           payer: cfr[5] ? cfr[5].toString() : "",
@@ -392,7 +345,7 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // ĐỌC RIÊNG SỔ QUỸ THU CHI
+  // ĐỌC RIÊNG SỔ QUỸ THU CHI (Lọc bỏ các dòng thống kê tổng kết)
   if (action === "fetchCashflow") {
     var cashflow = [];
     var cfSheet = ss ? ss.getSheetByName("SoQuy_ThuChi") : null;
@@ -401,10 +354,21 @@ function doGet(e) {
       for (var c = 0; c < cfRows.length; c++) {
         var cfr = cfRows[c];
         if (!cfr[0] && !cfr[3]) continue;
+        var rId = cfr[0] ? cfr[0].toString().trim() : "";
+        var rType = cfr[2] ? cfr[2].toString().toUpperCase().trim() : "";
+        var rCat = cfr[3] ? cfr[3].toString().toUpperCase().trim() : "";
+
+        // Bỏ qua dòng thống kê tổng kết tuần
+        if (rId.indexOf("[TỔNG") === 0 || rId.indexOf("[CÒN LẠI") === 0 || 
+            rCat.indexOf("TỔNG CHI") !== -1 || rCat.indexOf("CÒN LẠI") !== -1 ||
+            (rType !== "THU" && rType !== "CHI")) {
+          continue;
+        }
+
         cashflow.push({
-          id: cfr[0] ? cfr[0].toString() : ("CF-" + c),
+          id: rId ? rId : ("CF-" + c),
           date: cfr[1] ? formatDateForWeb(cfr[1]) : "",
-          type: (cfr[2] ? cfr[2].toString().toUpperCase() : "THU"),
+          type: rType,
           category: cfr[3] ? cfr[3].toString() : "",
           amount: Number(cfr[4]) || 0,
           payer: cfr[5] ? cfr[5].toString() : "",
@@ -678,30 +642,286 @@ function getOrCreateCashflowSheet(ss) {
   return sheet;
 }
 
+// =============================================================================
+// HÀM GHI DỮ LIỆU SỔ QUỸ & TỰ ĐỘNG THỐNG KÊ TỔNG CHI, CÒN LẠI CUỐI MỖI TUẦN
+// =============================================================================
+function renderCashflowWithWeeklyTotals(sheet, records, timestamp) {
+  if (!sheet) return { weeksCount: 0 };
+
+  // 1. Lọc và chuẩn hóa dữ liệu giao dịch sạch
+  var cleanRecords = [];
+  (records || []).forEach(function(r) {
+    if (!r) return;
+    var rawId = r.id ? r.id.toString().trim() : "";
+    var rawType = r.type ? r.type.toString().toUpperCase().trim() : "";
+    var rawCat = r.category ? r.category.toString().trim() : "";
+
+    // Bỏ qua các dòng thống kê tổng kết cũ
+    if (!rawId || rawId.indexOf("[TỔNG") === 0 || rawId.indexOf("[CÒN LẠI") === 0 ||
+        rawCat.indexOf("TỔNG CHI") !== -1 || rawCat.indexOf("CÒN LẠI") !== -1 ||
+        (rawType !== "THU" && rawType !== "CHI")) {
+      return;
+    }
+
+    var numAmount = Number(r.amount) || 0;
+    var w = (r.week || "").toString().trim();
+    if (!w) {
+      var match = (rawCat + " " + (r.note || "")).match(/tuần\s*(\d+)/i);
+      if (match) {
+        w = "Tuần " + match[1];
+      } else {
+        w = "Tuần 6"; // Mặc định nếu không tìm thấy tuần
+      }
+    }
+
+    cleanRecords.push({
+      id: rawId,
+      date: r.date || "",
+      type: rawType,
+      category: rawCat,
+      amount: numAmount,
+      payer: r.payer || "",
+      note: r.note || "",
+      week: w
+    });
+  });
+
+  // 2. Gom nhóm giao dịch theo từng tuần
+  var weekGroups = {};
+  var weekOrder = [];
+
+  cleanRecords.forEach(function(r) {
+    var w = r.week;
+    if (!weekGroups[w]) {
+      weekGroups[w] = [];
+      weekOrder.push(w);
+    }
+    weekGroups[w].push(r);
+  });
+
+  // Sắp xếp các tuần theo thứ tự tăng dần
+  weekOrder.sort(function(a, b) {
+    var numA = parseInt((a.match(/\d+/) || [999])[0], 10);
+    var numB = parseInt((b.match(/\d+/) || [999])[0], 10);
+    return numA - numB;
+  });
+
+  // 3. Xây dựng ma trận dữ liệu kèm dòng TỔNG THU, TỔNG CHI và CÒN LẠI ở cuối mỗi tuần
+  var allRows = [];
+  var styleDirectives = [];
+
+  for (var wIdx = 0; wIdx < weekOrder.length; wIdx++) {
+    var wk = weekOrder[wIdx];
+    var itemsInWk = weekGroups[wk];
+    var sumThu = 0;
+    var sumChi = 0;
+
+    // A. Thêm các dòng giao dịch của tuần này
+    for (var j = 0; j < itemsInWk.length; j++) {
+      var it = itemsInWk[j];
+      if (it.type === "THU") sumThu += it.amount;
+      else if (it.type === "CHI") sumChi += it.amount;
+
+      var rowIdx = allRows.length + 2; // +2 vì dòng 1 là tiêu đề
+      allRows.push([
+        it.id,
+        it.date,
+        it.type,
+        it.category,
+        it.amount,
+        it.payer,
+        it.note,
+        formatTimeStr(timestamp)
+      ]);
+
+      styleDirectives.push({
+        row: rowIdx,
+        styleType: it.type === "THU" ? "TRANS_THU" : "TRANS_CHI"
+      });
+    }
+
+    // B. DÒNG CUỐI MỖI TUẦN: THỐNG KÊ TỔNG THU, TỔNG CHI VÀ CÒN LẠI
+    var conLai = sumThu - sumChi;
+
+    // 1. Dòng TỔNG THU
+    var thuRow = allRows.length + 2;
+    allRows.push([
+      "[TỔNG THU]",
+      wk,
+      "THU",
+      "💵 TỔNG THU (" + wk + ")",
+      sumThu,
+      "Toàn tuần",
+      "Tổng số tiền thực thu vào quỹ trong " + wk,
+      formatTimeStr(timestamp)
+    ]);
+    styleDirectives.push({ row: thuRow, styleType: "SUM_THU" });
+
+    // 2. Dòng 🔴 TỔNG CHI (Đúng theo yêu cầu người dùng)
+    var chiRow = allRows.length + 2;
+    allRows.push([
+      "[TỔNG CHI]",
+      wk,
+      "CHI",
+      "🔴 TỔNG CHI (" + wk + ")",
+      sumChi,
+      "Toàn tuần",
+      "Tổng chi phí mua giấy, nạp mực & hoạt động " + wk,
+      formatTimeStr(timestamp)
+    ]);
+    styleDirectives.push({ row: chiRow, styleType: "SUM_CHI" });
+
+    // 3. Dòng 💰 CÒN LẠI (Đúng theo yêu cầu người dùng)
+    var conLaiRow = allRows.length + 2;
+    allRows.push([
+      "[CÒN LẠI]",
+      wk,
+      conLai >= 0 ? "DƯ QUỸ" : "ÂM QUỸ",
+      "💰 CÒN LẠI (TỒN QUỸ " + wk.toUpperCase() + ")",
+      conLai,
+      conLai >= 0 ? "Tồn quỹ an toàn" : "Thiếu hụt quỹ",
+      "= Tổng Thu (" + formatMoneySimple(sumThu) + ") - Tổng Chi (" + formatMoneySimple(sumChi) + ")",
+      formatTimeStr(timestamp)
+    ]);
+    styleDirectives.push({ row: conLaiRow, styleType: "CON_LAI", isNegative: conLai < 0 });
+
+    // Dòng trống cách quãng giữa các tuần (nếu còn tuần tiếp theo)
+    if (wIdx < weekOrder.length - 1) {
+      allRows.push(["", "", "", "", "", "", "", ""]);
+      styleDirectives.push({ row: allRows.length + 1, styleType: "SEPARATOR" });
+    }
+  }
+
+  // 4. Xóa dữ liệu cũ và ghi ma trận mới vào Sheet
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, 8).clear({ contentsOnly: false });
+  }
+
+  if (allRows.length > 0) {
+    sheet.getRange(2, 1, allRows.length, 8).setValues(allRows);
+
+    // Định dạng cột chung
+    sheet.getRange(2, 1, allRows.length, 1).setHorizontalAlignment("center").setFontWeight("bold");
+    sheet.getRange(2, 2, allRows.length, 1).setHorizontalAlignment("center");
+    sheet.getRange(2, 3, allRows.length, 1).setHorizontalAlignment("center").setFontWeight("bold");
+    sheet.getRange(2, 5, allRows.length, 1).setNumberFormat('#,##0 "đ"').setFontWeight("bold").setHorizontalAlignment("right");
+    sheet.getRange(2, 8, allRows.length, 1).setHorizontalAlignment("center");
+
+    // Tô màu và định dạng chuyên biệt cho từng loại dòng
+    styleDirectives.forEach(function(st) {
+      var r = st.row;
+      if (st.styleType === "TRANS_THU") {
+        sheet.getRange(r, 3).setFontColor("#047857");
+        sheet.getRange(r, 5).setFontColor("#047857");
+      } else if (st.styleType === "TRANS_CHI") {
+        sheet.getRange(r, 3).setFontColor("#dc2626");
+        sheet.getRange(r, 5).setFontColor("#dc2626");
+      } else if (st.styleType === "SUM_THU") {
+        var rangeThu = sheet.getRange(r, 1, 1, 8);
+        rangeThu.setBackground("#ecfdf5").setFontWeight("bold");
+        sheet.getRange(r, 3).setFontColor("#047857");
+        sheet.getRange(r, 4).setFontColor("#065f46");
+        sheet.getRange(r, 5).setFontColor("#047857");
+      } else if (st.styleType === "SUM_CHI") {
+        var rangeChi = sheet.getRange(r, 1, 1, 8);
+        rangeChi.setBackground("#fef2f2").setFontWeight("bold");
+        sheet.getRange(r, 3).setFontColor("#b91c1c");
+        sheet.getRange(r, 4).setFontColor("#991b1b");
+        sheet.getRange(r, 5).setFontColor("#dc2626");
+      } else if (st.styleType === "CON_LAI") {
+        var rangeConLai = sheet.getRange(r, 1, 1, 8);
+        rangeConLai.setBackground("#fef3c7").setFontWeight("bold");
+        sheet.getRange(r, 3).setFontColor(st.isNegative ? "#b91c1c" : "#1e3a8a");
+        sheet.getRange(r, 4).setFontColor("#1e3a8a").setFontSize(11);
+        sheet.getRange(r, 5).setFontColor(st.isNegative ? "#dc2626" : "#1e3a8a").setFontSize(11);
+        // Kẻ viền trên nét liền và viền dưới nét đôi (Double border)
+        rangeConLai.setBorder(true, false, true, false, false, false, "#d97706", SpreadsheetApp.BorderStyle.SOLID);
+      } else if (st.styleType === "SEPARATOR") {
+        sheet.getRange(r, 1, 1, 8).setBackground("#ffffff");
+      }
+    });
+  }
+
+  return { weeksCount: weekOrder.length, totalRows: allRows.length };
+}
+
+// Hàm định dạng chung cho SoQuy_ThuChi
 function formatCashflowSheet(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow > 1) {
     sheet.getRange(2, 1, lastRow - 1, 1).setHorizontalAlignment("center").setFontWeight("bold");
     sheet.getRange(2, 2, lastRow - 1, 1).setHorizontalAlignment("center");
     sheet.getRange(2, 3, lastRow - 1, 1).setHorizontalAlignment("center").setFontWeight("bold");
-    // Cột E: Số tiền VNĐ
     sheet.getRange(2, 5, lastRow - 1, 1).setNumberFormat('#,##0 "đ"').setFontWeight("bold").setHorizontalAlignment("right");
     sheet.getRange(2, 8, lastRow - 1, 1).setHorizontalAlignment("center");
+  }
+}
 
-    // Tô màu loại giao dịch: THU màu xanh, CHI màu đỏ
-    var types = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
-    for (var r = 0; r < types.length; r++) {
-      var t = types[r][0] ? types[r][0].toString().toUpperCase().trim() : "";
-      var cellType = sheet.getRange(r + 2, 3);
-      var cellAmount = sheet.getRange(r + 2, 5);
-      if (t === "THU") {
-        cellType.setFontColor("#047857");
-        cellAmount.setFontColor("#047857");
-      } else if (t === "CHI") {
-        cellType.setFontColor("#dc2626");
-        cellAmount.setFontColor("#dc2626");
-      }
+// =============================================================================
+// HÀM TIỆN ÍCH DÀNH CHO NGƯỜI DÙNG: THỐNG KÊ TỔNG CHI VÀ CÒN LẠI CUỐI MỖI TUẦN (1 CLICK)
+// =============================================================================
+function thongKeSoQuyTheoTuan(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("SoQuy_ThuChi");
+  if (!sheet) {
+    if (typeof SpreadsheetApp.getUi === "function") {
+      SpreadsheetApp.getUi().alert("Chưa tìm thấy sheet SoQuy_ThuChi!");
     }
+    return;
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    if (typeof SpreadsheetApp.getUi === "function") {
+      SpreadsheetApp.getUi().alert("Sheet SoQuy_ThuChi chưa có giao dịch nào để thống kê!");
+    }
+    return;
+  }
+
+  // Đọc toàn bộ các dòng hiện có trên sheet
+  var data = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+  var rawRecords = [];
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var id = row[0] ? row[0].toString().trim() : "";
+    var dateVal = row[1] ? formatDateForWeb(row[1]) : "";
+    var type = row[2] ? row[2].toString().toUpperCase().trim() : "";
+    var cat = row[3] ? row[3].toString().trim() : "";
+    var amt = Number(row[4]) || 0;
+    var payer = row[5] ? row[5].toString().trim() : "";
+    var note = row[6] ? row[6].toString().trim() : "";
+
+    // Bỏ qua dòng thống kê cũ
+    if (!id || id.indexOf("[TỔNG") === 0 || id.indexOf("[CÒN LẠI") === 0 ||
+        cat.indexOf("TỔNG CHI") !== -1 || cat.indexOf("CÒN LẠI") !== -1 ||
+        (type !== "THU" && type !== "CHI")) {
+      continue;
+    }
+
+    rawRecords.push({
+      id: id,
+      date: dateVal,
+      type: type,
+      category: cat,
+      amount: amt,
+      payer: payer,
+      note: note
+    });
+  }
+
+  var res = renderCashflowWithWeeklyTotals(sheet, rawRecords, new Date());
+
+  if (typeof SpreadsheetApp.getUi === "function") {
+    SpreadsheetApp.getUi().alert(
+      "✅ ĐÃ THỐNG KÊ THÀNH CÔNG!",
+      "Đã tự động tính toán và hiển thị:\n" +
+      "- 🔴 TỔNG CHI\n" +
+      "- 💰 CÒN LẠI (TỒN QUỸ)\n" +
+      "ở dòng cuối của " + res.weeksCount + " tuần trong sheet SoQuy_ThuChi!",
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
   }
 }
 
@@ -717,6 +937,23 @@ function formatDateForWeb(d) {
   } catch (e) {
     return d.toString();
   }
+}
+
+// Helper: Format Time string DD/MM/YYYY HH:MM:SS
+function formatTimeStr(d) {
+  if (!d) d = new Date();
+  var pad = function(n) { return n < 10 ? '0' + n : n; };
+  try {
+    return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' +
+           pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  } catch(e) {
+    return d.toString();
+  }
+}
+
+// Helper: Format số tiền đơn giản
+function formatMoneySimple(num) {
+  return Number(num || 0).toLocaleString('vi-VN') + ' đ';
 }
 
 // =============================================================================
@@ -745,20 +982,20 @@ function chuanHoaVaDienTuan() {
   var dSheet = getOrCreateDebtSheet(ss);
   formatDebtSheet(dSheet);
 
-  // 3. Chuẩn hóa Tab 3: SoQuy_ThuChi
-  var cSheet = getOrCreateCashflowSheet(ss);
-  formatCashflowSheet(cSheet);
+  // 3. Chuẩn hóa Tab 3: SoQuy_ThuChi (Tự động thống kê Tổng Chi & Còn Lại cuối mỗi tuần)
+  thongKeSoQuyTheoTuan(ss);
 
   Logger.log("ĐÃ CHUẨN HÓA THÀNH CÔNG CẢ 3 TAB CƠ SỞ DỮ LIỆU:");
   Logger.log("1. NhatKy_Photo: Đã định dạng VNĐ & dọn sạch " + deletedCount + " dòng rác.");
   Logger.log("2. CongNo_TheoTuan: Đã sẵn sàng lưu công nợ theo từng tuần.");
-  Logger.log("3. SoQuy_ThuChi: Đã sẵn sàng lưu nhật ký thu chi tiền mặt & vật tư.");
+  Logger.log("3. SoQuy_ThuChi: Đã tự động thống kê Tổng Chi và Còn Lại cuối mỗi tuần.");
 }
 
 // Tự động tạo menu trên thanh công cụ của Google Sheet khi mở file
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu("⚙️ QUẢN LÝ PHOTO")
+    .addItem("📊 Thống kê Tổng Chi & Còn Lại cuối mỗi tuần (Sổ Quỹ)", "thongKeSoQuyTheoTuan")
     .addItem("🚀 Chuẩn hóa và kẻ khung 3 bảng CSDL", "chuanHoaVaDienTuan")
     .addItem("🧹 Dọn dẹp dòng trùng lặp (Photo)", "cleanDuplicates")
     .addToUi();
