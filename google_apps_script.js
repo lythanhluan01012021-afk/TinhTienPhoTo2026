@@ -663,7 +663,7 @@ function renderCashflowWithWeeklyTotals(sheet, records, timestamp) {
       return;
     }
 
-    var numAmount = Number(r.amount) || 0;
+    var numAmount = parseMoneySafe(r.amount);
     var w = (r.week || "").toString().trim();
     if (!w) {
       var match = (rawCat + " " + (r.note || "")).match(/tuần\s*(\d+)/i);
@@ -715,6 +715,9 @@ function renderCashflowWithWeeklyTotals(sheet, records, timestamp) {
     var itemsInWk = weekGroups[wk];
     var sumThu = 0;
     var sumChi = 0;
+    var lastDate = (itemsInWk.length > 0 && itemsInWk[itemsInWk.length - 1].date)
+      ? itemsInWk[itemsInWk.length - 1].date
+      : formatDateForWeb(timestamp);
 
     // A. Thêm các dòng giao dịch của tuần này
     for (var j = 0; j < itemsInWk.length; j++) {
@@ -747,7 +750,7 @@ function renderCashflowWithWeeklyTotals(sheet, records, timestamp) {
     var thuRow = allRows.length + 2;
     allRows.push([
       "[TỔNG THU]",
-      wk,
+      lastDate,
       "THU",
       "💵 TỔNG THU (" + wk + ")",
       sumThu,
@@ -761,7 +764,7 @@ function renderCashflowWithWeeklyTotals(sheet, records, timestamp) {
     var chiRow = allRows.length + 2;
     allRows.push([
       "[TỔNG CHI]",
-      wk,
+      lastDate,
       "CHI",
       "🔴 TỔNG CHI (" + wk + ")",
       sumChi,
@@ -775,12 +778,12 @@ function renderCashflowWithWeeklyTotals(sheet, records, timestamp) {
     var conLaiRow = allRows.length + 2;
     allRows.push([
       "[CÒN LẠI]",
-      wk,
+      lastDate,
       conLai >= 0 ? "DƯ QUỸ" : "ÂM QUỸ",
       "💰 CÒN LẠI (TỒN QUỸ " + wk.toUpperCase() + ")",
       conLai,
       conLai >= 0 ? "Tồn quỹ an toàn" : "Thiếu hụt quỹ",
-      "= Tổng Thu (" + formatMoneySimple(sumThu) + ") - Tổng Chi (" + formatMoneySimple(sumChi) + ")",
+      "Tồn quỹ = Thu (" + formatMoneySimple(sumThu) + ") - Chi (" + formatMoneySimple(sumChi) + ")",
       formatTimeStr(timestamp)
     ]);
     styleDirectives.push({ row: conLaiRow, styleType: "CON_LAI", isNegative: conLai < 0 });
@@ -889,7 +892,7 @@ function thongKeSoQuyTheoTuan(ss) {
     var dateVal = row[1] ? formatDateForWeb(row[1]) : "";
     var type = row[2] ? row[2].toString().toUpperCase().trim() : "";
     var cat = row[3] ? row[3].toString().trim() : "";
-    var amt = Number(row[4]) || 0;
+    var amt = parseMoneySafe(row[4]);
     var payer = row[5] ? row[5].toString().trim() : "";
     var note = row[6] ? row[6].toString().trim() : "";
 
@@ -913,7 +916,7 @@ function thongKeSoQuyTheoTuan(ss) {
 
   var res = renderCashflowWithWeeklyTotals(sheet, rawRecords, new Date());
 
-  if (typeof SpreadsheetApp.getUi === "function") {
+  try {
     SpreadsheetApp.getUi().alert(
       "✅ ĐÃ THỐNG KÊ THÀNH CÔNG!",
       "Đã tự động tính toán và hiển thị:\n" +
@@ -922,6 +925,8 @@ function thongKeSoQuyTheoTuan(ss) {
       "ở dòng cuối của " + res.weeksCount + " tuần trong sheet SoQuy_ThuChi!",
       SpreadsheetApp.getUi().ButtonSet.OK
     );
+  } catch (e) {
+    Logger.log("Thống kê hoàn tất: " + res.weeksCount + " tuần.");
   }
 }
 
@@ -949,6 +954,14 @@ function formatTimeStr(d) {
   } catch(e) {
     return d.toString();
   }
+}
+
+// Helper: Parse tiền tệ an toàn từ chuỗi hoặc số
+function parseMoneySafe(val) {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (!val) return 0;
+  var digits = val.toString().replace(/[^\d]/g, '');
+  return parseInt(digits, 10) || 0;
 }
 
 // Helper: Format số tiền đơn giản
