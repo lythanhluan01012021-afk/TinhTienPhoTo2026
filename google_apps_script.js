@@ -86,17 +86,9 @@ function doPost(e) {
         ]);
       });
 
-      // 3. Ghi đè toàn bộ trong 1 lệnh duy nhất (Cực nhanh, mất chưa tới 0.3s)
-      if (lastRow > 1) {
-        sheet.getRange(2, 1, lastRow - 1, 11).clearContent();
-      }
+      // 3. Render toàn bộ dữ liệu photo theo tuần kèm dòng TỔNG KẾT cuối mỗi tuần
       var allRows = keepRows.concat(newRows);
-      if (allRows.length > 0) {
-        sheet.getRange(2, 1, allRows.length, 11).setValues(allRows);
-      }
-
-      // Định dạng tiền tệ VNĐ cho sheet photo
-      formatPhotoSheet(sheet);
+      renderPhotoWithWeeklyTotals(sheet, allRows, timestamp);
 
       // Nếu có gửi kèm công nợ thì đồng bộ luôn sang tab CongNo_TheoTuan
       if (data.classDebts !== undefined) {
@@ -212,6 +204,43 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // =========================================================================
+    // 7. ACTION: THỐNG KÊ TẤT CẢ HOẶC TỪNG BẢNG TỪ XA
+    // =========================================================================
+    if (data.action === "thongKeTatCa") {
+      var rPhoto = thongKePhotoTheoTuan(ss);
+      var rDebt = thongKeDebtTheoTuan(ss);
+      var rCash = thongKeSoQuyTheoTuan(ss);
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "Đã hoàn thành thống kê cả 3 bảng CSDL thành công!",
+        photo: rPhoto,
+        debt: rDebt,
+        cashflow: rCash,
+        spreadsheetUrl: ss ? ss.getUrl() : ""
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (data.action === "thongKePhoto") {
+      var resP = thongKePhotoTheoTuan(ss);
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "Đã thống kê NhatKy_Photo thành công!",
+        result: resP,
+        spreadsheetUrl: ss ? ss.getUrl() : ""
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (data.action === "thongKeDebt") {
+      var resD = thongKeDebtTheoTuan(ss);
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "Đã thống kê CongNo_TheoTuan thành công!",
+        result: resD,
+        spreadsheetUrl: ss ? ss.getUrl() : ""
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
       message: "Action không hợp lệ: " + data.action
@@ -287,9 +316,12 @@ function doGet(e) {
       var dRows = debtSheet.getRange(2, 1, debtSheet.getLastRow() - 1, 9).getValues();
       for (var d = 0; d < dRows.length; d++) {
         var dr = dRows[d];
+        var dId = dr[0] ? dr[0].toString().trim() : "";
+        if (dId.indexOf("[TỔNG") === 0) continue; // Bỏ qua dòng thống kê tổng nợ
         var dWeek = dr[1] ? dr[1].toString().trim() : "Tuần 1";
         var dClass = dr[2] ? dr[2].toString().trim() : "";
-        var dAmount = Number(dr[4]) || 0;
+        if (!dClass || dClass.indexOf("Tổng:") === 0) continue;
+        var dAmount = parseMoneySafe(dr[4]);
         var dNote = dr[7] ? dr[7].toString().trim() : "";
         var dDate = dr[8] ? dr[8].toString().trim() : "";
         if (dClass && dAmount > 0) {
@@ -483,8 +515,8 @@ function syncDebtsInternal(ss, targetWeek, debts, timestamp) {
     savedCount++;
   });
 
-  // Định dạng tiền tệ VNĐ cho sheet công nợ
-  formatDebtSheet(debtSheet);
+  // Tự động gom nhóm theo tuần và chèn dòng TỔNG NỢ & CẦN THU ở cuối mỗi tuần
+  renderDebtWithWeeklyTotals(debtSheet, null, timestamp);
 
   return { savedCount: savedCount };
 }
@@ -555,6 +587,170 @@ function formatPhotoSheet(sheet) {
   }
 }
 
+// Hàm ghi dữ liệu NhatKy_Photo và tự động thống kê ở cuối mỗi tuần
+function renderPhotoWithWeeklyTotals(sheet, records, timestamp) {
+  if (!sheet) return { weeksCount: 0 };
+
+  var cleanRecords = [];
+  if (!records || records.length === 0) {
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var data = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+      for (var i = 0; i < data.length; i++) {
+        var r = data[i];
+        var id = r[0] ? r[0].toString().trim() : "";
+        if (!id || id.indexOf("[TỔNG") === 0) continue;
+        cleanRecords.push({
+          id: id,
+          timestamp: r[1] ? formatTimeStr(new Date(r[1])) : formatTimeStr(timestamp),
+          teacherName: r[2] ? r[2].toString().trim() : "",
+          className: r[3] ? r[3].toString().trim() : "",
+          subject: r[4] ? r[4].toString().trim() : "",
+          studentCount: parseMoneySafe(r[5]),
+          extraCount: parseMoneySafe(r[6]),
+          totalCopies: parseMoneySafe(r[7]),
+          unitPrice: parseMoneySafe(r[8]),
+          amount: parseMoneySafe(r[9]),
+          week: r[10] ? r[10].toString().trim() : "Tuần 1"
+        });
+      }
+    }
+  } else {
+    records.forEach(function(r) {
+      if (!r) return;
+      var rawId = (Array.isArray(r) ? r[0] : r.id) ? (Array.isArray(r) ? r[0] : r.id).toString().trim() : "";
+      if (!rawId || rawId.indexOf("[TỔNG") === 0) return;
+
+      if (Array.isArray(r)) {
+        cleanRecords.push({
+          id: rawId,
+          timestamp: r[1] ? formatTimeStr(new Date(r[1])) : formatTimeStr(timestamp),
+          teacherName: r[2] ? r[2].toString().trim() : "",
+          className: r[3] ? r[3].toString().trim() : "",
+          subject: r[4] ? r[4].toString().trim() : "",
+          studentCount: parseMoneySafe(r[5]),
+          extraCount: parseMoneySafe(r[6]),
+          totalCopies: parseMoneySafe(r[7]),
+          unitPrice: parseMoneySafe(r[8]),
+          amount: parseMoneySafe(r[9]),
+          week: r[10] ? r[10].toString().trim() : "Tuần 1"
+        });
+      } else {
+        var sCount = parseMoneySafe(r.studentCount);
+        var eCount = parseMoneySafe(r.extraCount);
+        var tCopies = parseMoneySafe(r.totalCopies) || (sCount + eCount);
+        var uPrice = parseMoneySafe(r.unitPrice) || 380;
+        var amt = parseMoneySafe(r.amount) || (tCopies * uPrice);
+        cleanRecords.push({
+          id: rawId,
+          timestamp: r.timestamp ? formatTimeStr(new Date(r.timestamp)) : formatTimeStr(timestamp),
+          teacherName: r.teacherName || "",
+          className: r.className || "",
+          subject: r.subject || "",
+          studentCount: sCount,
+          extraCount: eCount,
+          totalCopies: tCopies,
+          unitPrice: uPrice,
+          amount: amt,
+          week: (r.week || "Tuần 1").toString().trim()
+        });
+      }
+    });
+  }
+
+  // Gom nhóm theo tuần
+  var weekGroups = {};
+  var weekOrder = [];
+  cleanRecords.forEach(function(item) {
+    var w = item.week || "Tuần 1";
+    if (!weekGroups[w]) {
+      weekGroups[w] = [];
+      weekOrder.push(w);
+    }
+    weekGroups[w].push(item);
+  });
+
+  weekOrder.sort(function(a, b) {
+    var numA = parseInt((a.match(/\d+/) || [999])[0], 10);
+    var numB = parseInt((b.match(/\d+/) || [999])[0], 10);
+    return numA - numB;
+  });
+
+  var allRows = [];
+  var summaryRows = [];
+
+  for (var wIdx = 0; wIdx < weekOrder.length; wIdx++) {
+    var wk = weekOrder[wIdx];
+    var items = weekGroups[wk];
+    var sumSiSo = 0;
+    var sumSoLuongLe = 0;
+    var sumTongBanIn = 0;
+    var sumThanhTien = 0;
+
+    for (var j = 0; j < items.length; j++) {
+      var it = items[j];
+      sumSiSo += it.studentCount;
+      sumSoLuongLe += it.extraCount;
+      sumTongBanIn += it.totalCopies;
+      sumThanhTien += it.amount;
+
+      allRows.push([
+        it.id,
+        it.timestamp,
+        it.teacherName,
+        it.className,
+        it.subject,
+        it.studentCount,
+        it.extraCount,
+        it.totalCopies,
+        it.unitPrice,
+        it.amount,
+        it.week
+      ]);
+    }
+
+    // DÒNG CUỐI TUẦN: TỔNG KẾT PHOTO TUẦN
+    var summaryRowIndex = allRows.length + 2;
+    allRows.push([
+      "[TỔNG KẾT]",
+      formatDateForWeb(timestamp),
+      "📊 TỔNG CỘNG PHOTO (" + wk + ")",
+      "Tổng: " + items.length + " đơn",
+      "Toàn trường",
+      sumSiSo,
+      sumSoLuongLe,
+      sumTongBanIn,
+      "",
+      sumThanhTien,
+      wk
+    ]);
+    summaryRows.push({ row: summaryRowIndex, week: wk, amount: sumThanhTien });
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, 11).clear({ contentsOnly: false });
+  }
+
+  if (allRows.length > 0) {
+    sheet.getRange(2, 1, allRows.length, 11).setValues(allRows);
+    formatPhotoSheet(sheet);
+
+    summaryRows.forEach(function(sm) {
+      var range = sheet.getRange(sm.row, 1, 1, 11);
+      range.setBackground("#dbeafe").setFontWeight("bold");
+      sheet.getRange(sm.row, 1).setFontColor("#1e3a8a");
+      sheet.getRange(sm.row, 3).setFontColor("#1e3a8a").setFontSize(10.5);
+      sheet.getRange(sm.row, 4).setFontColor("#1e40af");
+      sheet.getRange(sm.row, 8).setFontColor("#1e40af").setFontWeight("bold");
+      sheet.getRange(sm.row, 10).setFontColor("#1e40af").setFontSize(11).setFontWeight("bold");
+      range.setBorder(true, false, true, false, false, false, "#3b82f6", SpreadsheetApp.BorderStyle.SOLID);
+    });
+  }
+
+  return { weeksCount: weekOrder.length, totalRows: allRows.length };
+}
+
 // 2. Tab CongNo_TheoTuan (9 Cột Chuẩn)
 function getOrCreateDebtSheet(ss) {
   var sheet = ss.getSheetByName("CongNo_TheoTuan");
@@ -604,6 +800,142 @@ function formatDebtSheet(sheet) {
     sheet.getRange(2, 7, lastRow - 1, 1).setNumberFormat('#,##0 "đ"').setFontWeight("bold").setFontColor("#b91c1c").setHorizontalAlignment("right");
     sheet.getRange(2, 9, lastRow - 1, 1).setHorizontalAlignment("center");
   }
+}
+
+// Hàm ghi dữ liệu CongNo_TheoTuan và tự động thống kê ở cuối mỗi tuần
+function renderDebtWithWeeklyTotals(sheet, debts, timestamp) {
+  if (!sheet) return { weeksCount: 0 };
+
+  var cleanDebts = [];
+  if (!debts || debts.length === 0) {
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var data = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+      for (var i = 0; i < data.length; i++) {
+        var r = data[i];
+        var key = r[0] ? r[0].toString().trim() : "";
+        if (!key || key.indexOf("[TỔNG") === 0) continue;
+        cleanDebts.push({
+          key: key,
+          week: r[1] ? r[1].toString().trim() : "Tuần 1",
+          className: r[2] ? r[2].toString().trim() : "",
+          homeroomTeacher: r[3] ? r[3].toString().trim() : "",
+          debtAmount: parseMoneySafe(r[4]),
+          photoAmount: parseMoneySafe(r[5]),
+          totalDue: parseMoneySafe(r[6]),
+          note: r[7] ? r[7].toString().trim() : "",
+          updatedAt: r[8] ? r[8].toString().trim() : formatDateForWeb(timestamp)
+        });
+      }
+    }
+  } else {
+    debts.forEach(function(d) {
+      if (!d) return;
+      var rawKey = d.key || ((d.week || "Tuần 1") + "_" + (d.className || ""));
+      if (!rawKey || rawKey.indexOf("[TỔNG") === 0) return;
+      var dAmt = parseMoneySafe(d.previousDebt || d.debtAmount || d.amount);
+      var pAmt = parseMoneySafe(d.photoAmount);
+      var tDue = parseMoneySafe(d.totalDue) || (dAmt + pAmt);
+      cleanDebts.push({
+        key: rawKey,
+        week: (d.week || "Tuần 1").toString().trim(),
+        className: (d.className || "").toString().trim(),
+        homeroomTeacher: d.homeroomTeacher || "",
+        debtAmount: dAmt,
+        photoAmount: pAmt,
+        totalDue: tDue,
+        note: d.note || "",
+        updatedAt: d.updatedAt || formatDateForWeb(timestamp)
+      });
+    });
+  }
+
+  // Gom nhóm theo tuần
+  var weekGroups = {};
+  var weekOrder = [];
+  cleanDebts.forEach(function(item) {
+    var w = item.week || "Tuần 1";
+    if (!weekGroups[w]) {
+      weekGroups[w] = [];
+      weekOrder.push(w);
+    }
+    weekGroups[w].push(item);
+  });
+
+  weekOrder.sort(function(a, b) {
+    var numA = parseInt((a.match(/\d+/) || [999])[0], 10);
+    var numB = parseInt((b.match(/\d+/) || [999])[0], 10);
+    return numA - numB;
+  });
+
+  var allRows = [];
+  var summaryRows = [];
+
+  for (var wIdx = 0; wIdx < weekOrder.length; wIdx++) {
+    var wk = weekOrder[wIdx];
+    var items = weekGroups[wk];
+    var sumNo = 0;
+    var sumPhoto = 0;
+    var sumCanThu = 0;
+
+    for (var j = 0; j < items.length; j++) {
+      var it = items[j];
+      sumNo += it.debtAmount;
+      sumPhoto += it.photoAmount;
+      sumCanThu += it.totalDue;
+
+      allRows.push([
+        it.key,
+        it.week,
+        it.className,
+        it.homeroomTeacher,
+        it.debtAmount,
+        it.photoAmount,
+        it.totalDue,
+        it.note,
+        it.updatedAt
+      ]);
+    }
+
+    // DÒNG CUỐI TUẦN: TỔNG NỢ & CẦN THU TOÀN TRƯỜNG
+    var summaryRowIndex = allRows.length + 2;
+    allRows.push([
+      "[TỔNG NỢ]",
+      wk,
+      "Tổng: " + items.length + " lớp",
+      "📊 TỔNG CÔNG NỢ TOÀN TRƯỜNG (" + wk + ")",
+      sumNo,
+      sumPhoto,
+      sumCanThu,
+      "Tổng thực tế cần thu về quỹ " + wk,
+      formatDateForWeb(timestamp)
+    ]);
+    summaryRows.push({ row: summaryRowIndex, week: wk, totalDue: sumCanThu });
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, 9).clear({ contentsOnly: false });
+  }
+
+  if (allRows.length > 0) {
+    sheet.getRange(2, 1, allRows.length, 9).setValues(allRows);
+    formatDebtSheet(sheet);
+
+    summaryRows.forEach(function(sm) {
+      var range = sheet.getRange(sm.row, 1, 1, 9);
+      range.setBackground("#ccfbf1").setFontWeight("bold");
+      sheet.getRange(sm.row, 1).setFontColor("#0f766e");
+      sheet.getRange(sm.row, 3).setFontColor("#0f766e");
+      sheet.getRange(sm.row, 4).setFontColor("#0f766e").setFontSize(10.5);
+      sheet.getRange(sm.row, 5).setFontColor("#0f766e");
+      sheet.getRange(sm.row, 6).setFontColor("#0f766e");
+      sheet.getRange(sm.row, 7).setFontColor("#b91c1c").setFontSize(11);
+      range.setBorder(true, false, true, false, false, false, "#0d9488", SpreadsheetApp.BorderStyle.SOLID);
+    });
+  }
+
+  return { weeksCount: weekOrder.length, totalRows: allRows.length };
 }
 
 // 3. Tab SoQuy_ThuChi (8 Cột Chuẩn)
@@ -862,24 +1194,20 @@ function formatCashflowSheet(sheet) {
 }
 
 // =============================================================================
-// HÀM TIỆN ÍCH DÀNH CHO NGƯỜI DÙNG: THỐNG KÊ TỔNG CHI VÀ CÒN LẠI CUỐI MỖI TUẦN (1 CLICK)
+// HÀM TIỆN ÍCH DÀNH CHO NGƯỜI DÙNG: THỐNG KÊ TỔNG CHI VÀ CÒN LẠI CUỐI MỖI TUẦN (SỔ QUỸ)
 // =============================================================================
-function thongKeSoQuyTheoTuan(ss) {
+function thongKeSoQuyTheoTuan(ss, silent) {
   if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("SoQuy_ThuChi");
   if (!sheet) {
-    if (typeof SpreadsheetApp.getUi === "function") {
-      SpreadsheetApp.getUi().alert("Chưa tìm thấy sheet SoQuy_ThuChi!");
-    }
-    return;
+    if (!silent) showAlertSafe("Lỗi", "Chưa tìm thấy sheet SoQuy_ThuChi!");
+    return { weeksCount: 0 };
   }
 
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) {
-    if (typeof SpreadsheetApp.getUi === "function") {
-      SpreadsheetApp.getUi().alert("Sheet SoQuy_ThuChi chưa có giao dịch nào để thống kê!");
-    }
-    return;
+    if (!silent) showAlertSafe("Thông báo", "Sheet SoQuy_ThuChi chưa có giao dịch nào để thống kê!");
+    return { weeksCount: 0 };
   }
 
   // Đọc toàn bộ các dòng hiện có trên sheet
@@ -916,17 +1244,97 @@ function thongKeSoQuyTheoTuan(ss) {
 
   var res = renderCashflowWithWeeklyTotals(sheet, rawRecords, new Date());
 
-  try {
-    SpreadsheetApp.getUi().alert(
-      "✅ ĐÃ THỐNG KÊ THÀNH CÔNG!",
+  if (!silent) {
+    showAlertSafe(
+      "✅ ĐÃ THỐNG KÊ SỔ QUỸ THÀNH CÔNG!",
       "Đã tự động tính toán và hiển thị:\n" +
       "- 🔴 TỔNG CHI\n" +
       "- 💰 CÒN LẠI (TỒN QUỸ)\n" +
-      "ở dòng cuối của " + res.weeksCount + " tuần trong sheet SoQuy_ThuChi!",
-      SpreadsheetApp.getUi().ButtonSet.OK
+      "ở dòng cuối của " + res.weeksCount + " tuần trong sheet SoQuy_ThuChi!"
     );
+  }
+
+  return res;
+}
+
+// =============================================================================
+// HÀM TIỆN ÍCH DÀNH CHO NGƯỜI DÙNG: THỐNG KÊ NHẬT KÝ PHOTO THEO TUẦN (TAB 1)
+// =============================================================================
+function thongKePhotoTheoTuan(ss, silent) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("NhatKy_Photo");
+  if (!sheet) {
+    if (!silent) showAlertSafe("Lỗi", "Chưa tìm thấy sheet NhatKy_Photo!");
+    return { weeksCount: 0 };
+  }
+  var res = renderPhotoWithWeeklyTotals(sheet, null, new Date());
+  if (!silent) {
+    showAlertSafe(
+      "✅ ĐÃ THỐNG KÊ NHẬT KÝ PHOTO!",
+      "Đã tự động tính toán và hiển thị dòng [TỔNG KẾT] cuối mỗi tuần:\n" +
+      "- Tổng sĩ số & số lượng lẻ\n" +
+      "- Tổng số bản in toàn trường\n" +
+      "- Tổng thành tiền photo\n" +
+      "cho " + res.weeksCount + " tuần trong sheet NhatKy_Photo!"
+    );
+  }
+  return res;
+}
+
+// =============================================================================
+// HÀM TIỆN ÍCH DÀNH CHO NGƯỜI DÙNG: THỐNG KÊ CÔNG NỢ THEO TUẦN (TAB 2)
+// =============================================================================
+function thongKeDebtTheoTuan(ss, silent) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("CongNo_TheoTuan");
+  if (!sheet) {
+    if (!silent) showAlertSafe("Lỗi", "Chưa tìm thấy sheet CongNo_TheoTuan!");
+    return { weeksCount: 0 };
+  }
+  var res = renderDebtWithWeeklyTotals(sheet, null, new Date());
+  if (!silent) {
+    showAlertSafe(
+      "✅ ĐÃ THỐNG KÊ CÔNG NỢ THEO TUẦN!",
+      "Đã tự động tính toán và hiển thị dòng [TỔNG NỢ] cuối mỗi tuần:\n" +
+      "- Tổng tiền nợ cũ/thiếu\n" +
+      "- Tổng tiền photo tuần này\n" +
+      "- TỔNG CẦN THU TOÀN TRƯỜNG\n" +
+      "cho " + res.weeksCount + " tuần trong sheet CongNo_TheoTuan!"
+    );
+  }
+  return res;
+}
+
+// =============================================================================
+// HÀM TIỆN ÍCH: THỐNG KÊ TẤT CẢ 3 TAB TRONG 1 LẦN BẤM (ALL-IN-ONE)
+// =============================================================================
+function thongKeTatCaSheet(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pSheet = ss.getSheetByName("NhatKy_Photo");
+  var dSheet = ss.getSheetByName("CongNo_TheoTuan");
+  var cSheet = ss.getSheetByName("SoQuy_ThuChi");
+
+  var resP = pSheet ? renderPhotoWithWeeklyTotals(pSheet, null, new Date()) : { weeksCount: 0 };
+  var resD = dSheet ? renderDebtWithWeeklyTotals(dSheet, null, new Date()) : { weeksCount: 0 };
+  var resC = cSheet ? thongKeSoQuyTheoTuan(ss, true) : { weeksCount: 0 };
+
+  showAlertSafe(
+    "✅ ĐÃ THỐNG KÊ TOÀN DIỆN CẢ 3 BẢNG THÀNH CÔNG!",
+    "Hệ thống đã tự động tính và chèn dòng thống kê ở dòng cuối mỗi tuần cho:\n\n" +
+    "1. 📄 NhatKy_Photo: Tổng Sĩ Số, Tổng Bản In & Tổng Tiền Photo.\n" +
+    "2. 📋 CongNo_TheoTuan: Tổng Nợ Cũ, Tiền Photo & TỔNG CẦN THU.\n" +
+    "3. 💰 SoQuy_ThuChi: 🔴 TỔNG CHI và 💰 CÒN LẠI (Tồn Quỹ)."
+  );
+
+  return { photo: resP, debt: resD, cashflow: resC };
+}
+
+// Helper: Hiển thị thông báo an toàn không gây crash nếu chạy ngầm
+function showAlertSafe(title, msg) {
+  try {
+    SpreadsheetApp.getUi().alert(title, msg, SpreadsheetApp.getUi().ButtonSet.OK);
   } catch (e) {
-    Logger.log("Thống kê hoàn tất: " + res.weeksCount + " tuần.");
+    Logger.log(title + ": " + msg);
   }
 }
 
@@ -989,26 +1397,29 @@ function chuanHoaVaDienTuan() {
       }
     }
   }
-  formatPhotoSheet(pSheet);
 
   // 2. Chuẩn hóa Tab 2: CongNo_TheoTuan
-  var dSheet = getOrCreateDebtSheet(ss);
-  formatDebtSheet(dSheet);
+  getOrCreateDebtSheet(ss);
 
-  // 3. Chuẩn hóa Tab 3: SoQuy_ThuChi (Tự động thống kê Tổng Chi & Còn Lại cuối mỗi tuần)
-  thongKeSoQuyTheoTuan(ss);
+  // 3. Chuẩn hóa Tab 3: SoQuy_ThuChi
+  getOrCreateCashflowSheet(ss);
 
-  Logger.log("ĐÃ CHUẨN HÓA THÀNH CÔNG CẢ 3 TAB CƠ SỞ DỮ LIỆU:");
-  Logger.log("1. NhatKy_Photo: Đã định dạng VNĐ & dọn sạch " + deletedCount + " dòng rác.");
-  Logger.log("2. CongNo_TheoTuan: Đã sẵn sàng lưu công nợ theo từng tuần.");
-  Logger.log("3. SoQuy_ThuChi: Đã tự động thống kê Tổng Chi và Còn Lại cuối mỗi tuần.");
+  // Tự động thống kê đồng loạt cả 3 bảng
+  thongKeTatCaSheet(ss);
+
+  Logger.log("ĐÃ CHUẨN HÓA & THỐNG KÊ THÀNH CÔNG CẢ 3 TAB CƠ SỞ DỮ LIỆU!");
 }
 
 // Tự động tạo menu trên thanh công cụ của Google Sheet khi mở file
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu("⚙️ QUẢN LÝ PHOTO")
-    .addItem("📊 Thống kê Tổng Chi & Còn Lại cuối mỗi tuần (Sổ Quỹ)", "thongKeSoQuyTheoTuan")
+    .addItem("📊 Thống kê TẤT CẢ 3 BẢNG (Photo + Công Nợ + Sổ Quỹ)", "thongKeTatCaSheet")
+    .addSeparator()
+    .addItem("1️⃣ Thống kê Tab 1: NhatKy_Photo", "thongKePhotoTheoTuan")
+    .addItem("2️⃣ Thống kê Tab 2: CongNo_TheoTuan", "thongKeDebtTheoTuan")
+    .addItem("3️⃣ Thống kê Tab 3: SoQuy_ThuChi", "thongKeSoQuyTheoTuan")
+    .addSeparator()
     .addItem("🚀 Chuẩn hóa và kẻ khung 3 bảng CSDL", "chuanHoaVaDienTuan")
     .addItem("🧹 Dọn dẹp dòng trùng lặp (Photo)", "cleanDuplicates")
     .addToUi();
@@ -1029,7 +1440,7 @@ function cleanDuplicates() {
 
   for (var i = 0; i < data.length; i++) {
     var id = data[i][0] ? data[i][0].toString().trim() : "";
-    if (!id) continue;
+    if (!id || id.indexOf("[TỔNG") === 0) continue;
 
     if (seenIds[id]) {
       rowsToDelete.push(i + 2);
