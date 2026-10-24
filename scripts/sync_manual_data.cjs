@@ -11,7 +11,10 @@ function mapRow(r, i) {
   const shortTeacher = (r[1] || 'HỌC SINH').toString().trim();
   const className = (r[2] || '').toString().trim();
   const studentCount = Number(r[3]) || 0;
-  const extraCount = Number(r[4]) || 0;
+  let extraCount = Number(r[4]) || 0;
+  if (studentCount > 0 && extraCount === studentCount) {
+    extraCount = 0;
+  }
   const unitPrice = Number(r[5]) || 0;
   const amount = Number(r[6]) || 0;
 

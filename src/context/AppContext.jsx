@@ -899,7 +899,8 @@ export const AppProvider = ({ children }) => {
       category: record.category,
       amount: Number(record.amount) || 0,
       payer: record.payer || '',
-      note: record.note || ''
+      note: record.note || '',
+      week: record.week || ''
     };
     setCashflow(prev => [newRecord, ...prev]);
     setIsCashflowSynced(false);
@@ -1609,6 +1610,8 @@ export const AppProvider = ({ children }) => {
         // Direct Class Debts (Quản lý trực tiếp nợ / thiếu theo yêu cầu người dùng)
         classDebts,
         setClassDebts,
+        weeklyDebts,
+        setWeeklyDebts,
         updateClassDebt,
         removeClassDebt,
         clearAllClassDebts,

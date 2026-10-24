@@ -107,7 +107,9 @@ export const ExcelGrid = () => {
 
     displayedItems.forEach(item => {
       const copies = (Number(item.studentCount) || 0) + (Number(item.extraCount) || 0);
-      const amount = copies * (Number(item.unitPrice) || 0);
+      const amount = (item.amount !== undefined && item.amount !== null && Number(item.amount) > 0)
+        ? Number(item.amount)
+        : (copies * (Number(item.unitPrice) || 0));
       totalCopies += copies;
       totalAmount += amount;
       if (item.isPaid) {
