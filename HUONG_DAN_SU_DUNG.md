@@ -49,8 +49,16 @@ Hệ thống được phát triển chuyên biệt cho công tác in ấn/photoc
 
 ---
 
-### 💰 PHÂN HỆ SỔ QUỸ THU / CHI
+### 💰 PHÂN HỆ SỔ QUỸ THU / CHI & GOOGLE SHEETS
 * Theo dõi **Tổng tiền thu vào** (từ các lớp nộp tiền photo).
 * Theo dõi **Tổng chi phí** (mua giấy in A4, nạp mực in, sửa chữa máy).
 * Tự động tính **Lợi nhuận / Quỹ phòng photo còn lại**.
 * Bộ lọc trực quan theo Tháng, Năm và Loại giao dịch; hỗ trợ xuất file Excel Sổ quỹ.
+* **Tự động thống kê trên Google Sheets (`SoQuy_ThuChi`)**:
+  - Tự động gom nhóm các giao dịch thu chi theo từng tuần (Tuần 1, Tuần 2, ..., Tuần n).
+  - Tự động chèn và làm nổi bật ở **dòng cuối mỗi tuần**:
+    + `💵 TỔNG THU (Tuần X)`: Tổng các khoản thu trong tuần.
+    + `🔴 TỔNG CHI (Tuần X)`: Tổng các khoản chi trong tuần.
+    + `💰 CÒN LẠI (TỒN QUỸ TUẦN X)`: Tiền còn lại = Tổng Thu - Tổng Chi (nổi bật màu vàng hổ phách, viền kép kế toán sang trọng).
+  - **Menu thao tác nhanh trên Google Sheets**: Menu `⚙️ QUẢN LÝ PHOTO` $\rightarrow$ `📊 Thống kê Tổng Chi & Còn Lại cuối mỗi tuần (Sổ Quỹ)` (1 click để cập nhật lại ngay tức thì).
+
